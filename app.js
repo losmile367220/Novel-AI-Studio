@@ -9,87 +9,80 @@ async function handleCredentialResponse(response) {
   }
 
   currentIdToken = response.credential;
-  status.textContent = '正在驗證登入權限……';
+  status.textContent = '正在驗證登入並讀取小說……';
 
   try {
     const url = new URL(APP_CONFIG.GAS_API_URL);
 
-    url.searchParams.set('action', 'getCurrentUser');
+    // 一次完成登入驗證、白名單與小說清單讀取
+    url.searchParams.set('action', 'bootstrap');
     url.searchParams.set('idToken', currentIdToken);
+    url.searchParams.set('_t', Date.now().toString());
 
     const apiResponse = await fetch(url.toString(), {
       method: 'GET',
-      redirect: 'follow'
+      redirect: 'follow',
+      cache: 'no-store'
     });
 
-    const result = await apiResponse.json();
+    const responseText = await apiResponse.text();
+
+    let result;
+
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Apps Script 原始回應：', responseText);
+
+      throw new Error(
+        'Apps Script 回傳的不是 JSON，請確認部署已更新為最新版本。'
+      );
+    }
 
     if (!result.success) {
       throw new Error(result.error || '登入驗證失敗。');
     }
 
-    const user = result.data;
+    const bootstrap = result.data || {};
+    const user = bootstrap.user || {};
+    const novels = bootstrap.novels || [];
 
-    status.innerHTML = `
-      ✅ 登入成功<br>
-      歡迎回來，${escapeHtml(user.name || user.email)}
-      <br><br>
-      正在讀取小說清單……
-    `;
-
-    await loadNovelList();
+    renderNovelList(user, novels);
 
   } catch (error) {
     console.error(error);
 
     status.innerHTML = `
-      ❌ 無法連接 Apps Script API<br><br>
+      ❌ 無法讀取 Novel AI Studio<br><br>
       ${escapeHtml(error.message || '發生未知錯誤')}
     `;
   }
 }
 
-async function loadNovelList() {
+function renderNovelList(user, novels) {
   const status = document.getElementById('status');
 
-  try {
-    const url = new URL(APP_CONFIG.GAS_API_URL);
+  const welcome = `
+    <div class="login-success">
+      ✅ 登入與白名單驗證成功
+    </div>
 
-    url.searchParams.set('action', 'getNovelList');
-    url.searchParams.set('idToken', currentIdToken);
-
-    const apiResponse = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-
-    const result = await apiResponse.json();
-
-    if (!result.success) {
-      throw new Error(result.error || '讀取小說清單失敗。');
-    }
-
-    renderNovelList(result.data || []);
-
-  } catch (error) {
-    console.error(error);
-
-    status.innerHTML = `
-      ✅ Google 登入成功<br>
-      ❌ 小說清單讀取失敗<br><br>
-      ${escapeHtml(error.message || '發生未知錯誤')}
-    `;
-  }
-}
-
-function renderNovelList(novels) {
-  const status = document.getElementById('status');
+    <p>
+      歡迎回來，${escapeHtml(user.name || user.email || '創作者')}
+    </p>
+  `;
 
   if (!novels.length) {
     status.innerHTML = `
-      ✅ 登入與白名單驗證成功<br><br>
-      📚 目前還沒有小說
+      ${welcome}
+
+      <h2>📚 我的小說</h2>
+
+      <div class="empty-message">
+        目前還沒有小說
+      </div>
     `;
+
     return;
   }
 
@@ -118,9 +111,7 @@ function renderNovelList(novels) {
   `).join('');
 
   status.innerHTML = `
-    <div class="login-success">
-      ✅ 登入與白名單驗證成功
-    </div>
+    ${welcome}
 
     <h2>📚 我的小說</h2>
 
