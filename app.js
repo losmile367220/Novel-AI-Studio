@@ -1,0 +1,1 @@
+function handleCredentialResponse(r){document.getElementById('status').innerHTML=r.credential?'✅ Google 登入成功，下一步串接 Apps Script API':'登入失敗';}

@@ -1,0 +1,1 @@
+const APP_CONFIG={GOOGLE_CLIENT_ID:"237913653612-71asrk9ehl4afhotoht1u8v99426seog.apps.googleusercontent.com",GAS_API_URL:"請貼上 Apps Script /exec 網址"};
