@@ -132,16 +132,34 @@ async function openNovel(novelId) {
 }
 
 async function openCharacters() {
-  showScreen("characters");
-  document.getElementById("characterList").innerHTML = '<div class="empty">正在讀取人物……</div>';
-  try {
-    characters = await apiGet("getCharacters",{novelId:currentNovel["ID"]});
-    renderCharacters();
-  } catch (error) {
-    document.getElementById("characterList").innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
-  }
-}
 
+  showScreen("characters");
+
+  // 如果已經讀過人物，就直接顯示
+  if (characters.length > 0) {
+    renderCharacters();
+    return;
+  }
+
+  document.getElementById("characterList").innerHTML =
+    '<div class="empty">正在讀取人物……</div>';
+
+  try {
+
+    characters = await apiGet("getCharacters", {
+      novelId: currentNovel["ID"]
+    });
+
+    renderCharacters();
+
+  } catch (error) {
+
+    document.getElementById("characterList").innerHTML =
+      `<div class="empty">${escapeHtml(error.message)}</div>`;
+
+  }
+
+}
 function renderCharacters() {
   const query = document.getElementById("characterSearch").value.trim().toLowerCase();
   const result = characters.filter(character => {
