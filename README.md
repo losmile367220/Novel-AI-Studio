@@ -1,29 +1,31 @@
-# Novel AI Studio v1.1.1 Speed Fix
+# Novel AI Studio v1.2 — 世界觀
 
-這版專門修正手機人物編輯速度與即時更新問題。
+以 v1.1.1 Speed Fix 為基礎。
 
-## 修正
-- 「下一步 / 上一步」改成正式 JavaScript event listener
-- 第 1～4 步完全本機切換，不連 Apps Script
-- 儲存人物只呼叫一次 POST
-- 儲存成功後直接使用後端回傳的新人物資料更新畫面
-- 不再儲存後重新 GET 整份 characters.json
-- 刪除後也不再重新 GET
-- API 加入逾時提示，避免無限「儲存中」
-- 更新 cache-busting 版本號
+新增：
+- 🌍 世界觀首頁
+- 世界概要
+- 國家／朝代
+- 歷史
+- 政治制度
+- 文化風俗
+- 貨幣經濟
+- 時間曆法
+- 武學／修煉
+- 醫療
+- 宗教信仰
+- 其他設定
+- 世界觀搜尋
+- 手機設定式詳細頁
+- 分區編輯
+- world.json 雲端儲存
+- 儲存成功後本機立即更新，不重新 GET
 
-## 預期體感
-- 下一步：立即切換
-- 備註改成「測試123」：儲存成功後立刻看到
-- 編輯人物：比上一版少一次雲端請求
-- 新增人物：比上一版少一次雲端請求
+GitHub 覆蓋：
+index.html
+style.css
+app.js
 
-## 更新 GitHub
-只需要覆蓋：
-- index.html
-- style.css
-- app.js
-
-config.js 沒有功能變更，可以不覆蓋。
-
-Apps Script 本次不用修改、不用重新部署。
+Apps Script：
+新增 WorldService.gs
+並依 AppsScript-更新步驟.txt 修改 doGet / doPost 後重新部署既有 Web App。

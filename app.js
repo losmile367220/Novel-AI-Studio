@@ -5,6 +5,9 @@ let currentNovel = null;
 let characters = [];
 let filteredRole = "";
 let currentCharacter = null;
+let worldData = {};
+let currentWorldSection = "overview";
+let previousWorldScreen = "world";
 let currentSection = "basic";
 let wizardStep = 1;
 let wizardReturn = "characters";
@@ -377,6 +380,261 @@ async function deleteCurrentCharacter() {
     showToast(error.message || "刪除失敗。");
   }
 }
+
+
+const WORLD_SECTIONS = {
+  overview: {
+    icon:"🌍", title:"世界概要", preview:["worldName","era"],
+    help:"先定義故事所在的世界、時代與整體基調。",
+    fields:[
+      ["世界／王朝名稱","worldName","input","例如：大晉王朝"],
+      ["年代／時代","era","input","例如：架空古代"],
+      ["世界概要","summary","textarea","這個世界最核心的設定"]
+    ]
+  },
+  nation: {
+    icon:"🏯", title:"國家／朝代", preview:["nation"],
+    help:"記錄國家、朝代、疆域與統治架構。",
+    fields:[
+      ["國家／朝代","nation","textarea","主要國家、朝代與疆域"],
+      ["皇室／統治者","ruler","textarea","皇帝、皇族、權力核心"]
+    ]
+  },
+  history: {
+    icon:"📜", title:"歷史", preview:["history"],
+    help:"重要歷史事件、戰爭、政權更替與傳說。",
+    fields:[["歷史","history","textarea","重要年代與歷史事件"]]
+  },
+  politics: {
+    icon:"⚖️", title:"政治制度", preview:["politics"],
+    help:"朝廷、官制、爵位、權力分配與法律。",
+    fields:[
+      ["政治制度","politics","textarea","官制、爵位、權力架構"],
+      ["法律／禁忌","laws","textarea","法律、刑罰、社會禁忌"]
+    ]
+  },
+  culture: {
+    icon:"🏮", title:"文化風俗", preview:["culture"],
+    help:"衣食住行、禮儀、婚俗、節慶與社會習慣。",
+    fields:[
+      ["文化風俗","culture","textarea","禮儀、婚俗、生活方式"],
+      ["節慶","festivals","textarea","重要節日與活動"]
+    ]
+  },
+  economy: {
+    icon:"💰", title:"貨幣經濟", preview:["currency"],
+    help:"貨幣、物價、商業、產業與財富制度。",
+    fields:[
+      ["貨幣","currency","textarea","例如：銅錢、銀兩、金票"],
+      ["經濟／商業","economy","textarea","商業、產業、稅制"]
+    ]
+  },
+  calendar: {
+    icon:"🗓️", title:"時間曆法", preview:["calendar"],
+    help:"紀年方式、月份、時辰與時間規則。",
+    fields:[["時間／曆法","calendar","textarea","紀年、月份、時辰等"]]
+  },
+  power: {
+    icon:"⚔️", title:"武學／修煉", preview:["powerSystem"],
+    help:"能力來源、等級、限制與戰力規則。",
+    fields:[
+      ["武學／修煉體系","powerSystem","textarea","境界、能力、武學"],
+      ["能力限制","powerRules","textarea","代價、限制、禁止事項"]
+    ]
+  },
+  medical: {
+    icon:"🌿", title:"醫療", preview:["medical"],
+    help:"醫術、藥材、毒術、治療方式與醫療限制。",
+    fields:[["醫療體系","medical","textarea","醫術、藥材、毒術、治療"]]
+  },
+  religion: {
+    icon:"🕯️", title:"宗教信仰", preview:["religion"],
+    help:"神祇、宗教、祭祀、信仰與民間傳說。",
+    fields:[["宗教／信仰","religion","textarea","神祇、祭祀、信仰"]]
+  },
+  other: {
+    icon:"📝", title:"其他設定", preview:["other"],
+    help:"任何還沒有適合分類的位置都可以放在這裡。",
+    fields:[["其他設定","other","textarea","補充設定"]]
+  }
+};
+
+function worldSectionTitle(key) {
+  return WORLD_SECTIONS[key]?.title || "世界觀";
+}
+
+async function openWorld() {
+  showScreen("world");
+  document.getElementById("worldSectionList").innerHTML =
+    '<div class="world-empty">正在讀取世界觀……</div>';
+
+  try {
+    worldData = await apiGet("getWorld", {novelId: currentNovel["ID"]}) || {};
+    renderWorld();
+  } catch (error) {
+    console.error(error);
+    document.getElementById("worldSectionList").innerHTML =
+      `<div class="world-empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderWorld() {
+  const name = worldData.worldName || worldData.nation || "尚未設定世界名稱";
+  document.getElementById("worldName").textContent = name;
+  document.getElementById("worldEra").textContent =
+    worldData.era || "建立這本小說的世界規則";
+
+  const allFields = Object.values(WORLD_SECTIONS)
+    .flatMap(section => section.fields.map(field => field[1]));
+  const filled = allFields.filter(key => String(worldData[key] || "").trim()).length;
+  const completion = allFields.length
+    ? Math.round((filled / allFields.length) * 100)
+    : 0;
+
+  document.getElementById("worldCompletion").textContent = `${completion}%`;
+  document.getElementById("worldStatus").textContent =
+    filled ? `${completion}%` : "尚未設定";
+
+  renderWorldSections();
+}
+
+function renderWorldSections() {
+  const query = document.getElementById("worldSearch").value.trim().toLowerCase();
+
+  const entries = Object.entries(WORLD_SECTIONS).filter(([key, section]) => {
+    const content = [
+      section.title,
+      ...section.fields.map(field => worldData[field[1]] || "")
+    ].join(" ").toLowerCase();
+
+    return content.includes(query);
+  });
+
+  const list = document.getElementById("worldSectionList");
+
+  if (!entries.length) {
+    list.innerHTML = '<div class="world-empty">找不到符合條件的世界觀設定。</div>';
+    return;
+  }
+
+  list.innerHTML = entries.map(([key, section]) => {
+    const preview = section.preview
+      .map(field => worldData[field])
+      .find(value => String(value || "").trim()) || "尚未設定";
+
+    return `
+      <button class="settings-row" type="button" onclick="openWorldDetail('${key}')">
+        <span class="settings-icon">${section.icon}</span>
+        <span class="settings-copy">
+          <span class="settings-title">${section.title}</span>
+          <span class="settings-preview">${escapeHtml(preview)}</span>
+        </span>
+        <span class="settings-arrow">›</span>
+      </button>
+    `;
+  }).join("");
+}
+
+function openWorldDetail(sectionKey) {
+  currentWorldSection = sectionKey;
+  const section = WORLD_SECTIONS[sectionKey];
+  if (!section) return;
+
+  const html = section.fields.map(([label, key]) => `
+    <article class="world-field-card">
+      <h3>${escapeHtml(label)}</h3>
+      <p>${escapeHtml(worldData[key] || "尚未設定")}</p>
+    </article>
+  `).join("");
+
+  document.getElementById("worldDetailContent").innerHTML = html;
+  showScreen("worldDetail");
+}
+
+function editCurrentWorldSection() {
+  openWorldEditor(currentWorldSection);
+}
+
+function openWorldEditor(sectionKey = "overview") {
+  currentWorldSection = sectionKey;
+  previousWorldScreen = screens.worldDetail.classList.contains("hidden")
+    ? "world"
+    : "worldDetail";
+
+  const section = WORLD_SECTIONS[sectionKey];
+  if (!section) return;
+
+  document.getElementById("worldEditorFields").innerHTML = `
+    <section class="panel form-section">
+      <h2 class="world-editor-title">${section.icon} ${section.title}</h2>
+      <p class="world-editor-help">${section.help}</p>
+      ${section.fields.map(([label,key,type,placeholder]) => {
+        const value = escapeHtml(worldData[key] || "");
+        if (type === "textarea") {
+          return `
+            <label for="world_${key}">${escapeHtml(label)}</label>
+            <textarea id="world_${key}" data-world-key="${key}"
+              placeholder="${escapeHtml(placeholder || "")}">${value}</textarea>
+          `;
+        }
+        return `
+          <label for="world_${key}">${escapeHtml(label)}</label>
+          <input id="world_${key}" data-world-key="${key}"
+            value="${value}" placeholder="${escapeHtml(placeholder || "")}">
+        `;
+      }).join("")}
+    </section>
+  `;
+
+  showScreen("worldEditor");
+}
+
+function cancelWorldEditor() {
+  if (previousWorldScreen === "worldDetail") {
+    openWorldDetail(currentWorldSection);
+  } else {
+    showScreen("world");
+  }
+}
+
+document.getElementById("worldForm").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const button = document.getElementById("saveWorldBtn");
+  const section = WORLD_SECTIONS[currentWorldSection];
+  if (!section) return;
+
+  const patch = {};
+  section.fields.forEach(([, key]) => {
+    patch[key] = document.getElementById(`world_${key}`).value.trim();
+  });
+
+  button.disabled = true;
+  button.textContent = "☁️ 儲存中……";
+
+  try {
+    const saved = await apiPost("saveWorld", {
+      novelId: currentNovel["ID"],
+      data: patch
+    });
+
+    // Speed Fix：直接使用後端回傳結果，不再多 GET 一次。
+    worldData = saved || {...worldData, ...patch};
+    renderWorld();
+    showToast("✅ 世界觀已儲存");
+    openWorldDetail(currentWorldSection);
+
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "世界觀儲存失敗。");
+  } finally {
+    button.disabled = false;
+    button.textContent = "💾 儲存世界觀";
+  }
+});
+
+document.getElementById("worldSearch").addEventListener("input", renderWorldSections);
+
 
 document.getElementById("characterSearch").addEventListener("input", renderCharacters);
 document.getElementById("roleFilters").addEventListener("click", event => {
