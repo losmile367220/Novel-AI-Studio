@@ -2016,3 +2016,16 @@ button:disabled{
   .chapter-hero-actions{width:100%;}
   .chapter-hero-actions .small-btn{flex:1;}
 }
+
+/* v2.9 Smart Sidebar */
+.workspace-tabs{
+  overflow-x:auto;
+  scrollbar-width:thin;
+  flex-wrap:nowrap;
+}
+.workspace-tabs button{flex:0 0 auto;white-space:nowrap;}
+.workspace-check-list{max-height:calc(100vh - 250px);overflow:auto;}
+@media (max-width:899px){
+  .workspace-tabs{padding-bottom:5px;}
+  .workspace-check-list{max-height:none;}
+}

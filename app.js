@@ -2034,9 +2034,17 @@ async function openCreativeWorkspace(){
       apiGet("getChapters",{novelId:currentNovel["ID"]}),
       loadTimelineFromCloud({allowMigration:false}),
       loadPlotHooksFromCloud(),
-      loadScenesFromCloud()
+      loadScenesFromCloud(),
+      apiGet("getLocations",{novelId:currentNovel["ID"]}),
+      apiGet("getFactions",{novelId:currentNovel["ID"]}),
+      apiGet("getItems",{novelId:currentNovel["ID"]}),
+      apiGet("getCharacters",{novelId:currentNovel["ID"]})
     ]);
     if(results[0].status==="fulfilled") chapters=results[0].value||[];
+    if(results[4].status==="fulfilled") locations=results[4].value||[];
+    if(results[5].status==="fulfilled") factions=results[5].value||[];
+    if(results[6].status==="fulfilled") items=results[6].value||[];
+    if(results[7].status==="fulfilled") characters=results[7].value||[];
     chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
   }catch(e){ console.warn(e); }
   renderWorkspaceChapterList();
@@ -2060,7 +2068,7 @@ function renderWorkspaceChapterList(){
 async function workspaceCreateChapter(){
   if(workspaceDirty) await saveWorkspaceChapter(false);
   const next=chapters.length?Math.max(...chapters.map(c=>Number(c.number)||0))+1:1;
-  workspaceChapter={id:"",number:next,title:"",status:"草稿",content:"",notes:"",characterIds:[],eventIds:[]};
+  workspaceChapter={id:"",number:next,title:"",status:"草稿",content:"",notes:"",characterIds:[],eventIds:[],locationIds:[],factionIds:[],itemIds:[]};
   fillWorkspaceEditor(workspaceChapter);
   setWorkspaceEditorVisible(true);
   toggleWorkspaceMobilePanel("editor");
@@ -2090,12 +2098,22 @@ function fillWorkspaceEditor(ch){
   document.getElementById("workspaceContent").value=ch.content||"";
   document.getElementById("workspaceNotes").value=ch.notes||"";
   const cs=new Set(ch.characterIds||[]),es=new Set(ch.eventIds||[]);
+  const ls=new Set(ch.locationIds||[]),fs=new Set(ch.factionIds||[]),its=new Set(ch.itemIds||[]);
   document.getElementById("workspaceCharacterChecks").innerHTML=characters.length?characters.map(c=>`
     <label class="workspace-check"><input type="checkbox" value="${safeAttr(c.id)}" ${cs.has(c.id)?"checked":""}>
     <span><b>${emojiForRole(c.role)} ${escapeHtml(c.name||"未命名")}</b><small>${escapeHtml(c.role||c.identity||"人物")}</small></span></label>`).join(""):'<div class="workspace-mini-empty">尚未建立人物</div>';
   document.getElementById("workspaceEventChecks").innerHTML=timelineEvents.length?timelineEvents.map(e=>`
     <label class="workspace-check"><input type="checkbox" value="${safeAttr(e.id)}" ${es.has(e.id)?"checked":""}>
     <span><b>${timelineTypeEmoji(e.type)} ${escapeHtml(e.title||"未命名事件")}</b><small>${escapeHtml(e.storyTime||e.status||"事件")}</small></span></label>`).join(""):'<div class="workspace-mini-empty">尚未建立事件</div>';
+  document.getElementById("workspaceLocationChecks").innerHTML=locations.length?locations.map(l=>`
+    <label class="workspace-check"><input type="checkbox" value="${safeAttr(l.id)}" ${ls.has(l.id)?"checked":""}>
+    <span><b>${locationEmoji(l.type)} ${escapeHtml(l.name||"未命名地點")}</b><small>${escapeHtml(l.type||l.region||"地點")}</small></span></label>`).join(""):'<div class="workspace-mini-empty">尚未建立地點</div>';
+  document.getElementById("workspaceFactionChecks").innerHTML=factions.length?factions.map(f=>`
+    <label class="workspace-check"><input type="checkbox" value="${safeAttr(f.id)}" ${fs.has(f.id)?"checked":""}>
+    <span><b>${factionEmoji(f.type)} ${escapeHtml(f.name||"未命名勢力")}</b><small>${escapeHtml(f.type||f.stance||"勢力")}</small></span></label>`).join(""):'<div class="workspace-mini-empty">尚未建立勢力</div>';
+  document.getElementById("workspaceItemChecks").innerHTML=items.length?items.map(it=>`
+    <label class="workspace-check"><input type="checkbox" value="${safeAttr(it.id)}" ${its.has(it.id)?"checked":""}>
+    <span><b>${itemEmoji(it.type)} ${escapeHtml(it.name||"未命名物品")}</b><small>${escapeHtml(it.type||it.importance||"物品")}</small></span></label>`).join(""):'<div class="workspace-mini-empty">尚未建立物品</div>';
   updateWorkspaceStats();
   renderWorkspaceScenes();
   renderWorkspacePlotHooks();
@@ -2128,7 +2146,10 @@ async function saveWorkspaceChapter(showMessage=false){
     content,
     notes:document.getElementById("workspaceNotes").value.trim(),
     characterIds:[...document.querySelectorAll("#workspaceCharacterChecks input:checked")].map(x=>x.value),
-    eventIds:[...document.querySelectorAll("#workspaceEventChecks input:checked")].map(x=>x.value)
+    eventIds:[...document.querySelectorAll("#workspaceEventChecks input:checked")].map(x=>x.value),
+    locationIds:[...document.querySelectorAll("#workspaceLocationChecks input:checked")].map(x=>x.value),
+    factionIds:[...document.querySelectorAll("#workspaceFactionChecks input:checked")].map(x=>x.value),
+    itemIds:[...document.querySelectorAll("#workspaceItemChecks input:checked")].map(x=>x.value)
   };
   setWorkspaceSaveState("☁️ 儲存中…");
   try{
@@ -2145,7 +2166,7 @@ async function saveWorkspaceChapter(showMessage=false){
 }
 
 function switchWorkspaceTab(tab){
-  ["characters","events","reference","scenes","hooks","ai"].forEach(name=>{
+  ["characters","events","locations","factions","items","reference","scenes","hooks","ai"].forEach(name=>{
     document.getElementById("workspaceTab"+name[0].toUpperCase()+name.slice(1)).classList.toggle("hidden",name!==tab);
   });
   document.querySelectorAll("[data-workspace-tab]").forEach(b=>b.classList.toggle("active",b.dataset.workspaceTab===tab));
@@ -2161,6 +2182,14 @@ function renderWorkspaceReference(){
   factions.forEach(f=>{
     const text=[f.name,f.type,f.leader,f.stance,f.goal,f.purpose].join(" ");
     if(!q||text.toLowerCase().includes(q))items.push(`<article class="workspace-ref-card"><b>${factionEmoji(f.type)} ${escapeHtml(f.name||"未命名勢力")}</b><small>${escapeHtml(f.type||"勢力")} · ${escapeHtml(f.leader||"")}</small><p>${escapeHtml(f.goal||f.purpose||f.stance||"尚無摘要")}</p></article>`);
+  });
+  locations.forEach(l=>{
+    const text=[l.name,l.type,l.region,l.appearance,l.atmosphere,l.purpose,l.storyRole].join(" ");
+    if(!q||text.toLowerCase().includes(q))items.push(`<article class="workspace-ref-card"><b>${locationEmoji(l.type)} ${escapeHtml(l.name||"未命名地點")}</b><small>${escapeHtml(l.type||"地點")} · ${escapeHtml(l.region||"")}</small><p>${escapeHtml(l.atmosphere||l.appearance||l.purpose||"尚無摘要")}</p></article>`);
+  });
+  items.forEach(it=>{
+    const text=[it.name,it.type,it.alias,it.appearance,it.effect,it.storyRole,it.secret].join(" ");
+    if(!q||text.toLowerCase().includes(q))items.push(`<article class="workspace-ref-card"><b>${itemEmoji(it.type)} ${escapeHtml(it.name||"未命名物品")}</b><small>${escapeHtml(it.type||"物品")} · ${escapeHtml(it.importance||"")}</small><p>${escapeHtml(it.effect||it.storyRole||it.appearance||"尚無摘要")}</p></article>`);
   });
   document.getElementById("workspaceReferenceList").innerHTML=items.join("")||'<div class="workspace-mini-empty">找不到符合資料</div>';
 }
@@ -2196,6 +2225,15 @@ ${buildAITimelineContext()}
 
 【未回收伏筆／線索】
 ${buildAIPlotHookContext()}
+
+【本章智慧關聯】
+人物：${(workspaceChapter.characterIds||[]).map(itemCharacterName).filter(Boolean).join("、")||"未指定"}
+地點：${(workspaceChapter.locationIds||[]).map(itemLocationName).filter(Boolean).join("、")||"未指定"}
+勢力：${(workspaceChapter.factionIds||[]).map(itemFactionName).filter(Boolean).join("、")||"未指定"}
+物品：${(workspaceChapter.itemIds||[]).map(id=>items.find(x=>x.id===id)?.name).filter(Boolean).join("、")||"未指定"}
+
+【重要物品／道具】
+${buildAIItemContext()}
 
 【本章場景大綱】
 ${buildAISceneContext()}
@@ -2242,6 +2280,12 @@ function toggleWorkspaceMobilePanel(panel){
 }
 document.getElementById("workspaceChapterSearch").addEventListener("input",renderWorkspaceChapterList);
 document.getElementById("workspaceReferenceSearch").addEventListener("input",renderWorkspaceReference);
+
+["workspaceLocationChecks","workspaceFactionChecks","workspaceItemChecks"].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el)el.addEventListener("change",markWorkspaceDirty);
+});
+
 ["workspaceChapterNumber","workspaceChapterTitle","workspaceChapterStatus","workspaceContent","workspaceNotes"].forEach(id=>{
   const el=document.getElementById(id);
   el.addEventListener(id==="workspaceContent"?"input":"change",()=>{if(id==="workspaceContent")updateWorkspaceStats();markWorkspaceDirty()});

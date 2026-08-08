@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v28-chapter-center">
+  <link rel="stylesheet" href="style.css?v=20260808-v29-smart-sidebar">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -407,6 +407,9 @@
         <div class="workspace-tabs">
           <button class="active" type="button" data-workspace-tab="characters" onclick="switchWorkspaceTab('characters')">人物</button>
           <button type="button" data-workspace-tab="events" onclick="switchWorkspaceTab('events')">事件</button>
+          <button type="button" data-workspace-tab="locations" onclick="switchWorkspaceTab('locations')">地點</button>
+          <button type="button" data-workspace-tab="factions" onclick="switchWorkspaceTab('factions')">勢力</button>
+          <button type="button" data-workspace-tab="items" onclick="switchWorkspaceTab('items')">物品</button>
           <button type="button" data-workspace-tab="reference" onclick="switchWorkspaceTab('reference')">速查</button>
           <button type="button" data-workspace-tab="scenes" onclick="switchWorkspaceTab('scenes')">場景</button>
           <button type="button" data-workspace-tab="hooks" onclick="switchWorkspaceTab('hooks')">伏筆</button>
@@ -429,12 +432,36 @@
           <div id="workspaceEventChecks" class="workspace-check-list"></div>
         </div>
 
+        <div id="workspaceTabLocations" class="workspace-tab-panel hidden">
+          <div class="workspace-inspector-head">
+            <b>📍 本章地點</b>
+            <small>可複選，會跟章節一起儲存</small>
+          </div>
+          <div id="workspaceLocationChecks" class="workspace-check-list"></div>
+        </div>
+
+        <div id="workspaceTabFactions" class="workspace-tab-panel hidden">
+          <div class="workspace-inspector-head">
+            <b>🏯 涉及勢力</b>
+            <small>標記本章牽涉的勢力</small>
+          </div>
+          <div id="workspaceFactionChecks" class="workspace-check-list"></div>
+        </div>
+
+        <div id="workspaceTabItems" class="workspace-tab-panel hidden">
+          <div class="workspace-inspector-head">
+            <b>🎒 本章物品</b>
+            <small>重要道具直接掛到本章</small>
+          </div>
+          <div id="workspaceItemChecks" class="workspace-check-list"></div>
+        </div>
+
         <div id="workspaceTabReference" class="workspace-tab-panel hidden">
           <div class="workspace-inspector-head">
             <b>🔎 設定速查</b>
             <small>寫作時不用離開正文</small>
           </div>
-          <input id="workspaceReferenceSearch" type="search" placeholder="搜尋人物、勢力…" />
+          <input id="workspaceReferenceSearch" type="search" placeholder="搜尋人物、勢力、地點、物品…" />
           <div id="workspaceReferenceList" class="workspace-reference-list"></div>
         </div>
 
@@ -1068,6 +1095,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v28-chapter-center"></script>
+<script src="app.js?v=20260808-v29-smart-sidebar"></script>
 </body>
 </html>
