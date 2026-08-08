@@ -537,6 +537,159 @@ document.getElementById("roleFilters").addEventListener("click", event => {
 
 
 /* =========================================================
+ * v2.1 Chapter Tools
+ * 刪除 / 複製 / 上下章 / 匯出
+ * =======================================================*/
+function sortedChapters(){
+  return [...chapters].sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
+}
+
+function workspaceCurrentIndex(){
+  if(!workspaceChapter) return -1;
+  return sortedChapters().findIndex(ch=>ch.id===workspaceChapter.id);
+}
+
+async function workspacePreviousChapter(){
+  if(workspaceDirty) await saveWorkspaceChapter(false);
+  const list=sortedChapters();
+  const i=workspaceCurrentIndex();
+  if(i<=0) return showToast("已經是第一章");
+  await selectWorkspaceChapter(list[i-1].id);
+}
+
+async function workspaceNextChapter(){
+  if(workspaceDirty) await saveWorkspaceChapter(false);
+  const list=sortedChapters();
+  const i=workspaceCurrentIndex();
+  if(i<0 || i>=list.length-1) return showToast("已經是最後一章");
+  await selectWorkspaceChapter(list[i+1].id);
+}
+
+async function duplicateWorkspaceChapter(){
+  if(!workspaceChapter) return showToast("請先選擇章節");
+  if(workspaceDirty) await saveWorkspaceChapter(false);
+
+  const list=sortedChapters();
+  const maxNumber=list.length?Math.max(...list.map(ch=>Number(ch.number)||0)):0;
+  const source=workspaceChapter;
+
+  const data={
+    number:maxNumber+1,
+    title:`${source.title||"未命名章節"}（複製）`,
+    status:"草稿",
+    content:source.content||"",
+    notes:source.notes||"",
+    characterIds:[...(source.characterIds||[])],
+    eventIds:[...(source.eventIds||[])]
+  };
+
+  try{
+    const saved=await apiPost("saveChapter",{
+      novelId:currentNovel["ID"],
+      chapterId:"",
+      data
+    });
+    chapters.push(saved);
+    chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
+    workspaceChapter={...saved};
+    fillWorkspaceEditor(workspaceChapter);
+    renderWorkspaceChapterList();
+    showToast("✅ 已複製成新章節");
+  }catch(e){
+    console.error(e);
+    showToast(e.message||"複製章節失敗");
+  }
+}
+
+async function deleteWorkspaceChapter(){
+  if(!workspaceChapter) return showToast("請先選擇章節");
+  const title=workspaceChapter.title||`第 ${workspaceChapter.number||"?"} 章`;
+
+  if(!confirm(`確定刪除「${title}」？\n\n這會從 Google Drive 的 chapters.json 中刪除，無法從網站復原。`)) return;
+
+  try{
+    await apiPost("deleteChapter",{
+      novelId:currentNovel["ID"],
+      chapterId:workspaceChapter.id
+    });
+
+    const deletedId=workspaceChapter.id;
+    chapters=chapters.filter(ch=>ch.id!==deletedId);
+    workspaceChapter=null;
+    workspaceDirty=false;
+    setWorkspaceEditorVisible(false);
+    renderWorkspaceChapterList();
+    showToast("✅ 章節已刪除");
+  }catch(e){
+    console.error(e);
+    showToast(e.message||"刪除章節失敗");
+  }
+}
+
+function downloadTextFile(filename,text){
+  const blob=new Blob(["\ufeff"+text],{type:"text/plain;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),500);
+}
+
+function safeFilename(name){
+  return String(name||"小說")
+    .replace(/[\\/:*?"<>|]/g,"_")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+function exportCurrentChapterTxt(){
+  if(!workspaceChapter) return showToast("請先選擇章節");
+
+  const number=Number(document.getElementById("workspaceChapterNumber").value)||workspaceChapter.number||1;
+  const title=document.getElementById("workspaceChapterTitle").value.trim()||workspaceChapter.title||`第 ${number} 章`;
+  const content=document.getElementById("workspaceContent").value||"";
+  const notes=document.getElementById("workspaceNotes").value.trim();
+
+  const text=`第 ${number} 章 ${title}
+
+${content}${notes?`
+
+------------------------------
+【章節備註】
+${notes}`:""}
+`;
+
+  downloadTextFile(
+    `${safeFilename(currentNovel?.["書名"]||"小說")}_第${number}章_${safeFilename(title)}.txt`,
+    text
+  );
+  showToast("✅ 單章 TXT 已匯出");
+}
+
+function exportNovelTxt(){
+  const list=sortedChapters();
+  if(!list.length) return showToast("目前沒有章節可以匯出");
+
+  const bookTitle=currentNovel?.["書名"]||"未命名小說";
+  const body=list.map(ch=>`第 ${Number(ch.number)||"?"} 章 ${ch.title||""}
+
+${ch.content||""}
+`).join("\n\n========================================\n\n");
+
+  const text=`${bookTitle}
+
+========================================
+
+${body}`;
+
+  downloadTextFile(`${safeFilename(bookTitle)}_全文.txt`,text);
+  showToast(`✅ 已匯出 ${list.length} 章`);
+}
+
+/* =========================================================
  * v2.0 Creative Workspace
  * 三欄整合：章節 / 正文 / 人物事件設定AI
  * =======================================================*/

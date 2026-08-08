@@ -1350,3 +1350,70 @@ button:disabled{
   }
 }
 
+
+
+/* =========================================================
+   v2.1 Chapter Tools
+   ========================================================= */
+.workspace-chapter-actions{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-bottom:1px solid var(--border);
+  background:#fcfbff;
+}
+.workspace-nav-actions,
+.workspace-more-actions{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.workspace-chapter-actions button{
+  border:1px solid var(--border);
+  border-radius:9px;
+  padding:6px 9px;
+  background:#fff;
+  color:#55566a;
+  font-size:9px;
+  font-weight:800;
+}
+.workspace-chapter-actions button:hover{
+  background:var(--primary-soft);
+  color:var(--primary-dark);
+}
+.workspace-chapter-actions .danger-lite{
+  background:#fff4f4;
+  color:var(--danger);
+  border-color:#f5d7d7;
+}
+
+@media(min-width:1000px){
+  .workspace-chapter-actions{
+    padding:9px 16px;
+  }
+  .workspace-chapter-actions button{
+    font-size:10px;
+    padding:7px 10px;
+  }
+}
+
+@media(max-width:899px){
+  .workspace-chapter-actions{
+    display:grid;
+    gap:6px;
+  }
+  .workspace-nav-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+  .workspace-more-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+  .workspace-chapter-actions button{
+    padding:7px 5px;
+    font-size:8px;
+  }
+}
