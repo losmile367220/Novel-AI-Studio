@@ -1981,3 +1981,38 @@ button:disabled{
   .scene-modal{padding:7px}.scene-panel{width:100%;max-height:96vh;border-radius:17px}
   .scene-modal-actions{grid-template-columns:1fr 1fr}.scene-modal-actions>div{display:none}
 }
+
+
+/* =========================================================
+   v2.8 Chapter Center
+   ========================================================= */
+.chapter-center-kicker{
+  font-size:11px;font-weight:800;letter-spacing:.16em;color:#7b6ee8;margin-bottom:5px;
+}
+.chapter-center-stats{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+.chapter-recent-panel{margin-top:14px;padding:16px;}
+.chapter-section-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.chapter-section-heading>div{display:flex;flex-direction:column;gap:3px;}
+.chapter-section-heading b{font-size:15px;}
+.chapter-section-heading small{font-size:11px;color:var(--muted,#8a8a9a);font-weight:500;}
+.chapter-all-heading{margin:20px 2px 10px;}
+.chapter-recent-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+.chapter-recent-card{
+  position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:5px;
+  min-width:0;padding:14px 38px 14px 14px;border:1px solid #e6e2ff;border-radius:16px;
+  background:#fbfaff;text-align:left;cursor:pointer;
+}
+.chapter-recent-card:hover{transform:translateY(-1px);border-color:#cfc7ff;box-shadow:0 8px 24px rgba(80,65,160,.08);}
+.chapter-recent-card b{width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;}
+.chapter-recent-card small{color:var(--muted,#858596);font-size:11px;}
+.chapter-recent-no{font-size:10px;font-weight:800;color:#7565e8;background:#eeeaff;border-radius:999px;padding:4px 7px;}
+.chapter-recent-arrow{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:20px;color:#aaa2d8;}
+
+@media (max-width: 760px){
+  .chapter-center-stats{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .chapter-recent-list{grid-template-columns:1fr;}
+  .chapter-hero-actions{width:100%;}
+  .chapter-hero-actions .small-btn{flex:1;}
+}

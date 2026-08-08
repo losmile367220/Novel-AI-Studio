@@ -269,6 +269,13 @@ async function openNovel(novelId) {
     characters = await apiGet("getCharacters", {novelId:currentNovel["ID"]});
     document.getElementById("characterCount").textContent = `${characters.length} 位`;
   } catch (e) { document.getElementById("characterCount").textContent = "讀取失敗"; }
+  try {
+    chapters=await apiGet("getChapters",{novelId:currentNovel["ID"]})||[];
+    chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
+    updateChapterHomeCount();
+  } catch(e) {
+    const el=document.getElementById("chapterHomeCount"); if(el)el.textContent="讀取失敗";
+  }
   try { items = await apiGet("getItems", {novelId:currentNovel["ID"]}) || []; document.getElementById("itemCount").textContent = `${items.length} 個`; } catch(e) { document.getElementById("itemCount").textContent = "讀取失敗"; }
   try { locations = await apiGet("getLocations", {novelId:currentNovel["ID"]}) || []; document.getElementById("locationCount").textContent = `${locations.length} 個`; } catch(e) { document.getElementById("locationCount").textContent = "讀取失敗"; }
   try { factions = await apiGet("getFactions", {novelId:currentNovel["ID"]}); document.getElementById("factionCount").textContent = `${factions.length} 個`; } catch(e) { document.getElementById("factionCount").textContent = "讀取失敗"; }
@@ -2485,6 +2492,33 @@ function setChapterCloudStatus(text,state=""){
 function chapterCharCount(text){ return String(text||"").replace(/\s/g,"").length; }
 function chapterParagraphCount(text){ return String(text||"").split(/\n+/).map(x=>x.trim()).filter(Boolean).length; }
 
+function updateChapterHomeCount(){
+  const el=document.getElementById("chapterHomeCount");
+  if(el) el.textContent=`${chapters.length} 章`;
+}
+function chapterEditStamp(ch){
+  return ch.updatedAt || ch.updated_at || ch.modifiedAt || ch.modified_at || ch.savedAt || ch.createdAt || "";
+}
+function renderChapterRecent(){
+  const box=document.getElementById("chapterRecentList");
+  if(!box)return;
+  const rows=[...chapters].sort((a,b)=>{
+    const ta=Date.parse(chapterEditStamp(a))||0, tb=Date.parse(chapterEditStamp(b))||0;
+    return tb!==ta ? tb-ta : (Number(b.number)||0)-(Number(a.number)||0);
+  }).slice(0,3);
+  box.innerHTML=rows.length?rows.map(ch=>{
+    const stamp=chapterEditStamp(ch);
+    let when="";
+    if(stamp){ const d=new Date(stamp); if(!Number.isNaN(d.getTime())) when=d.toLocaleString("zh-TW",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
+    return `<button class="chapter-recent-card" type="button" onclick="openChapterEditor('${safeAttr(ch.id)}')">
+      <span class="chapter-recent-no">第 ${Number(ch.number)||"?"} 章</span>
+      <b>${escapeHtml(ch.title||"未命名章節")}</b>
+      <small>${escapeHtml(ch.status||"未設定")} · ${chapterCharCount(ch.content).toLocaleString()} 字${when?` · ${escapeHtml(when)}`:""}</small>
+      <span class="chapter-recent-arrow">›</span>
+    </button>`;
+  }).join(""):'<div class="empty compact">還沒有章節紀錄。</div>';
+}
+
 async function openChapters(){
   showScreen("chapters");
   try{ await loadTimelineFromCloud({allowMigration:false}); }catch(e){ console.warn("章節關聯事件讀取失敗",e); }
@@ -2515,10 +2549,14 @@ function renderChapters(){
   });
   const totalChars=chapters.reduce((n,ch)=>n+chapterCharCount(ch.content),0);
   const completed=chapters.filter(ch=>ch.status==="完成").length;
+  const drafts=chapters.filter(ch=>["構思","草稿","修稿"].includes(ch.status)).length;
+  updateChapterHomeCount();
+  renderChapterRecent();
   document.getElementById("chapterStats").innerHTML=`
     <div><b>${chapters.length}</b><small>總章數</small></div>
-    <div><b>${totalChars.toLocaleString()}</b><small>正文總字數</small></div>
-    <div><b>${completed}</b><small>已完成</small></div>`;
+    <div><b>${drafts}</b><small>進行中</small></div>
+    <div><b>${completed}</b><small>已完成</small></div>
+    <div><b>${totalChars.toLocaleString()}</b><small>正文總字數</small></div>`;
   const box=document.getElementById("chapterList"),empty=document.getElementById("chapterEmpty");
   if(!rows.length){
     box.innerHTML=""; empty.classList.remove("hidden");

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v27-items">
+  <link rel="stylesheet" href="style.css?v=20260808-v28-chapter-center">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -62,10 +62,10 @@
       <button class="module-card active" type="button" onclick="openLocations()"><span>📍</span><b>地點</b><small id="locationCount">0 個</small></button>
       <button class="module-card active" type="button" onclick="openItems()"><span>🎒</span><b>物品</b><small id="itemCount">0 個</small></button>
       <button class="module-card active" type="button" onclick="openPlotHooks()"><span>🧩</span><b>伏筆／線索</b><small>埋下 × 發展 × 回收</small></button>
-      <button class="module-card disabled" type="button"><span>📖</span><b>章節</b><small>即將開放</small></button>
+      <button class="module-card active chapter-center-module-card" type="button" onclick="openChapters()"><span>📖</span><b>章節</b><small id="chapterHomeCount">章節中心</small></button>
       <button class="module-card active workspace-module-card" type="button" onclick="openCreativeWorkspace()"><span>📝</span><b>創作工作台</b><small>章節 × 設定 × AI</small></button>
       <button class="module-card active" type="button" onclick="openScenes()"><span>🎬</span><b>場景／大綱</b><small>章節 × 場景 × POV</small></button>
-      <button class="module-card active" type="button" onclick="openChapters()"><span>📖</span><b>章節管理</b><small>正文 × 自動儲存</small></button>
+      
       <button class="module-card active" type="button" onclick="openTimeline()"><span>📜</span><b>劇情時間線</b><small>事件 × 人物 × 勢力</small></button>
       <button class="module-card active" type="button" onclick="openRelationshipGraph()"><span>🕸️</span><b>關係圖譜</b><small>人物 × 勢力</small></button>
       <button class="module-card active" type="button" onclick="openAIWriter()"><span>🤖</span><b>AI 助手</b><small>零 API Token</small></button>
@@ -590,11 +590,13 @@
   <section id="chaptersView" class="screen hidden">
     <article class="panel chapter-hero">
       <div>
-        <h2>📖 章節管理</h2>
-        <p class="muted">小說正文工作區。章節與內容會同步到 Google Drive。</p>
+        <div class="chapter-center-kicker">CHAPTER CENTER</div>
+        <h2>📖 章節中心</h2>
+        <p class="muted">全書進度、最近編輯與章節管理集中在這裡；正式寫作時再進創作工作台。</p>
         <div id="chapterCloudStatus" class="timeline-cloud-status">☁️ 等待雲端同步</div>
       </div>
       <div class="chapter-hero-actions">
+        <button class="primary small-btn" type="button" onclick="openCreativeWorkspace()">✍️ 進入創作工作台</button>
         <button class="secondary small-btn" type="button" onclick="exportNovelTxt()">⬇ 匯出整本</button>
         <button class="secondary small-btn" type="button" onclick="refreshChaptersFromCloud()">↻ 同步</button>
         <button class="primary small-btn" type="button" onclick="createChapter()">＋ 新增章節</button>
@@ -609,7 +611,12 @@
       </select>
     </article>
 
-    <div id="chapterStats" class="timeline-stats"></div>
+    <div id="chapterStats" class="timeline-stats chapter-center-stats"></div>
+    <article id="chapterRecentPanel" class="panel chapter-recent-panel">
+      <div class="chapter-section-heading"><div><b>🕘 最近編輯</b><small>快速回到最近動過的章節</small></div></div>
+      <div id="chapterRecentList" class="chapter-recent-list"></div>
+    </article>
+    <div class="chapter-section-heading chapter-all-heading"><div><b>📚 全部章節</b><small>搜尋、篩選或直接開啟編輯</small></div></div>
     <div id="chapterList" class="chapter-list"></div>
     <div id="chapterEmpty" class="empty hidden">目前還沒有章節。</div>
   </section>
@@ -1061,6 +1068,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v271-items-fix"></script>
+<script src="app.js?v=20260808-v28-chapter-center"></script>
 </body>
 </html>
