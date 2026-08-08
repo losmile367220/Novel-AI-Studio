@@ -2777,6 +2777,7 @@ function jumpToCharacter(id){
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.plotHooks.classList.contains("hidden")) return showScreen("novel");
   if (!screens.creativeWorkspace.classList.contains("hidden")) { if(workspaceDirty) saveWorkspaceChapter(false); return showScreen("novel"); }
   if (!screens.aiWriter.classList.contains("hidden")) return showScreen("novel");
   if (!screens.chapterEditor.classList.contains("hidden")) return closeChapterEditor();
