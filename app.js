@@ -18,6 +18,7 @@ let currentFactionSection = "basic";
 let factionEditorReturn = "factions";
 let relations = [];
 let relationReturn = "detail";
+let aiSelectedTask = "continue";
 let chapters = [];
 let currentChapter = null;
 let chapterSaveTimer = null;
@@ -49,7 +50,8 @@ const screens = {
   timeline: document.getElementById("timelineView"),
   timelineEditor: document.getElementById("timelineEditorView"),
   chapters: document.getElementById("chaptersView"),
-  chapterEditor: document.getElementById("chapterEditorView")
+  chapterEditor: document.getElementById("chapterEditorView"),
+  aiWriter: document.getElementById("aiWriterView")
 };
 
 const sectionGroups = {
@@ -193,7 +195,8 @@ function showScreen(name) {
     timeline:["📜 劇情時間線",currentNovel?.["書名"] || ""],
     timelineEditor:["✍️ 編輯事件",currentNovel?.["書名"] || ""],
     chapters:["📖 章節管理",currentNovel?.["書名"] || ""],
-    chapterEditor:["✍️ 章節編輯器",currentNovel?.["書名"] || ""]
+    chapterEditor:["✍️ 章節編輯器",currentNovel?.["書名"] || ""],
+    aiWriter:["🤖 AI 寫作助手",currentNovel?.["書名"] || ""]
   };
   document.getElementById("pageTitle").textContent = titles[name][0];
   document.getElementById("pageSubtitle").textContent = titles[name][1];
@@ -526,6 +529,237 @@ document.getElementById("roleFilters").addEventListener("click", event => {
   button.classList.add("active"); renderCharacters();
 });
 
+
+/* =========================================================
+ * v1.9 AI Writing Assistant
+ * 不呼叫 AI API，只建立高品質提示詞
+ * =======================================================*/
+const AI_TASKS = {
+  continue:{
+    title:"續寫目前章節",
+    instruction:"延續目前章節往下寫。承接既有情緒、人物動機與劇情，不要突然跳時間或加入未設定的新核心人物。"
+  },
+  polish:{
+    title:"潤飾目前正文",
+    instruction:"潤飾目前章節，使文字更流暢、有畫面感與情緒層次，但不要改變既有劇情、人物行為與世界觀設定。"
+  },
+  rewrite:{
+    title:"改寫目前章節",
+    instruction:"在不改變劇情結果與人物設定的前提下，重新改寫目前內容，使節奏、描寫與對話更自然。"
+  },
+  plot:{
+    title:"規劃後續劇情",
+    instruction:"分析目前設定與已發生事件，提出 3 個合理的後續劇情方向。每個方向說明衝突、角色動機、可利用伏筆與可能後果。"
+  },
+  dialogue:{
+    title:"設計角色對話",
+    instruction:"依目前人物個性、身份、彼此關係與秘密，設計自然且有潛台詞的角色對話。避免角色說出他不應知道的資訊。"
+  },
+  foreshadow:{
+    title:"伏筆與收束檢查",
+    instruction:"檢查目前設定、時間線與章節，找出已埋但尚未收束的伏筆、適合新增的伏筆，以及可能遺忘的劇情線。"
+  },
+  logic:{
+    title:"人物與劇情邏輯檢查",
+    instruction:"檢查人物設定、勢力、關係、世界觀、時間線與正文是否互相矛盾。列出具體問題與修改建議，不要自行改掉原設定。"
+  },
+  custom:{
+    title:"自訂 AI 任務",
+    instruction:"依使用者的自訂要求完成任務。"
+  }
+};
+
+async function openAIWriter(){
+  showScreen("aiWriter");
+
+  try{
+    if(!chapters.length){
+      chapters=await apiGet("getChapters",{novelId:currentNovel["ID"]})||[];
+    }
+  }catch(e){
+    console.warn("AI 助手章節讀取失敗",e);
+  }
+
+  const select=document.getElementById("aiChapterSelect");
+  select.innerHTML='<option value="">不指定章節</option>'+chapters
+    .sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0))
+    .map(ch=>`<option value="${safeAttr(ch.id)}">第 ${Number(ch.number)||"?"} 章｜${escapeHtml(ch.title||"未命名")}</option>`)
+    .join("");
+
+  if(currentChapter?.id) select.value=currentChapter.id;
+  selectAITask(aiSelectedTask||"continue");
+}
+
+function selectAITask(task){
+  aiSelectedTask=task;
+  document.querySelectorAll(".ai-task-grid button").forEach(btn=>btn.classList.remove("active"));
+  const buttons=[...document.querySelectorAll(".ai-task-grid button")];
+  const idx=Object.keys(AI_TASKS).indexOf(task);
+  if(buttons[idx])buttons[idx].classList.add("active");
+}
+
+function buildAIWorldContext(){
+  const w=worldData||{};
+  const lines=[
+    w.worldName&&`世界／王朝：${w.worldName}`,
+    w.era&&`年代：${w.era}`,
+    w.summary&&`世界概要：${w.summary}`,
+    w.nation&&`國家／朝代：${w.nation}`,
+    w.politics&&`政治制度：${w.politics}`,
+    w.culture&&`文化風俗：${w.culture}`,
+    w.currency&&`貨幣：${w.currency}`,
+    w.powerSystem&&`武學／能力體系：${w.powerSystem}`,
+    w.medical&&`醫療：${w.medical}`,
+    w.religion&&`宗教信仰：${w.religion}`
+  ].filter(Boolean);
+  return lines.length?lines.join("\n"):"尚未設定";
+}
+
+function buildAICharacterContext(){
+  if(!characters.length)return "尚未建立人物";
+  return characters.map(c=>`【${c.role||"角色"}：${c.name||"未命名"}】
+身份：${c.identity||"未設定"}
+外貌：${c.appearance||"未設定"}
+個性：${c.personality||"未設定"}
+喜歡：${c.likes||"未設定"}
+討厭：${c.dislikes||"未設定"}
+能力：${c.abilities||"未設定"}
+弱點：${c.weakness||"未設定"}
+過去：${c.past||"未設定"}
+秘密：${c.secret||"未設定"}`).join("\n\n");
+}
+
+function buildAIRelationContext(){
+  const lines=[];
+  characterLinks.forEach(link=>{
+    const a=characterById(link.sourceCharacterId),b=characterById(link.targetCharacterId);
+    if(!a||!b)return;
+    lines.push(`${a.name} ${link.direction==="oneway"?"→":"↔"} ${b.name}｜${link.sourceLabel||link.relationType||"關係"}${link.visibility==="秘密"?"｜秘密":""}｜親密 ${link.intimacy??50}｜信任 ${link.trust??50}`);
+  });
+  relations.forEach(r=>{
+    const c=characterById(r.characterId),f=factionById(r.factionId);
+    if(c&&f)lines.push(`${c.name} ↔ ${f.name}｜${r.role||"成員"}`);
+  });
+  return lines.length?lines.join("\n"):"尚未建立關聯";
+}
+
+function buildAIFactionContext(){
+  if(!factions.length)return "尚未建立勢力";
+  return factions.map(f=>`【${f.name||"未命名勢力"}】
+類型：${f.type||"未設定"}
+領袖：${f.leader||"未設定"}
+立場：${f.stance||"未設定"}
+目的：${f.goal||f.purpose||"未設定"}
+秘密：${f.secret||"未設定"}`).join("\n\n");
+}
+
+function buildAITimelineContext(){
+  if(!timelineEvents.length)return "尚未建立劇情事件";
+  return timelineEvents.map(e=>`- ${e.storyTime||"時間未設定"}｜${e.title||"未命名"}｜${e.status||"規劃中"}
+  ${e.summary||""}${e.impact?`\n  後續影響：${e.impact}`:""}`).join("\n");
+}
+
+function generateAIPrompt(){
+  const task=AI_TASKS[aiSelectedTask]||AI_TASKS.continue;
+  const chapterId=document.getElementById("aiChapterSelect").value;
+  const ch=chapters.find(x=>x.id===chapterId);
+  const custom=document.getElementById("aiCustomInstruction").value.trim();
+  const style=document.getElementById("aiStyleSelect").value;
+
+  const chapterText=ch?`第 ${ch.number||"?"} 章｜${ch.title||"未命名"}
+狀態：${ch.status||"草稿"}
+
+【目前正文】
+${ch.content||"尚無正文"}
+
+【章節備註】
+${ch.notes||"無"}`:"未指定章節";
+
+  const prompt=`你是一位專業的繁體中文小說創作助手。
+
+請嚴格依照以下小說資料工作，不要擅自改變已建立的人物設定、世界觀、人物關係與已發生事件。
+
+====================
+【小說】
+====================
+書名：${currentNovel?.["書名"]||"未命名"}
+類型：${currentNovel?.["類型"]||"未設定"}
+狀態：${currentNovel?.["狀態"]||"未設定"}
+
+====================
+【世界觀】
+====================
+${buildAIWorldContext()}
+
+====================
+【人物設定】
+====================
+${buildAICharacterContext()}
+
+====================
+【人物與勢力關係】
+====================
+${buildAIRelationContext()}
+
+====================
+【勢力】
+====================
+${buildAIFactionContext()}
+
+====================
+【已建立劇情時間線】
+====================
+${buildAITimelineContext()}
+
+====================
+【目前章節】
+====================
+${chapterText}
+
+====================
+【本次任務】
+====================
+${task.title}
+
+${task.instruction}
+
+輸出風格：${style}
+${custom?`額外要求：${custom}`:""}
+
+【重要規則】
+1. 使用繁體中文。
+2. 不要讓人物知道他尚未得知的秘密。
+3. 不要無故新增與既有設定衝突的身份、能力或世界規則。
+4. 角色說話與行為必須符合既有人設。
+5. 若資料不足，請提出合理選項，不要擅自把推測當成既定設定。
+6. 若本次任務是續寫或改寫，直接輸出可使用的小說正文，不需要解釋思考過程。`;
+
+  document.getElementById("aiPromptOutput").value=prompt;
+  document.getElementById("aiPromptStats").textContent=`${prompt.length.toLocaleString()} 字元 · ${task.title}`;
+  showToast("✨ 提示詞已產生");
+}
+
+async function copyAIPrompt(){
+  const text=document.getElementById("aiPromptOutput").value;
+  if(!text)return showToast("請先產生提示詞");
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast("✅ 提示詞已複製");
+  }catch(e){
+    const el=document.getElementById("aiPromptOutput");
+    el.select(); document.execCommand("copy");
+    showToast("✅ 提示詞已複製");
+  }
+}
+
+function openMetaAI(){
+  const text=document.getElementById("aiPromptOutput").value;
+  if(!text){
+    showToast("請先產生提示詞");
+    return;
+  }
+  window.open("https://www.meta.ai/","_blank","noopener,noreferrer");
+}
 
 /* =========================================================
  * v1.8 Chapter Manager
@@ -1634,6 +1868,7 @@ function jumpToCharacter(id){
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.aiWriter.classList.contains("hidden")) return showScreen("novel");
   if (!screens.chapterEditor.classList.contains("hidden")) return closeChapterEditor();
   if (!screens.chapters.classList.contains("hidden")) return showScreen("novel");
   if (!screens.timelineEditor.classList.contains("hidden")) return cancelTimelineEditor();

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v18-chapters">
+  <link rel="stylesheet" href="style.css?v=20260808-v19-ai">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -66,7 +66,7 @@
       <button class="module-card active" type="button" onclick="openChapters()"><span>📖</span><b>章節管理</b><small>正文 × 自動儲存</small></button>
       <button class="module-card active" type="button" onclick="openTimeline()"><span>📜</span><b>劇情時間線</b><small>事件 × 人物 × 勢力</small></button>
       <button class="module-card active" type="button" onclick="openRelationshipGraph()"><span>🕸️</span><b>關係圖譜</b><small>人物 × 勢力</small></button>
-      <button class="module-card disabled" type="button"><span>🤖</span><b>AI 助手</b><small>即將開放</small></button>
+      <button class="module-card active" type="button" onclick="openAIWriter()"><span>🤖</span><b>AI 助手</b><small>零 API Token</small></button>
     </div>
   </section>
 
@@ -227,6 +227,69 @@
       <button class="secondary" type="button" onclick="cancelCharacterLinkEditor()">取消</button>
       <button id="saveCharacterLinkBtn" class="primary" type="button" onclick="saveCharacterLinkEditor()">💾 儲存關係</button>
     </div>
+  </section>
+
+  <section id="aiWriterView" class="screen hidden">
+    <article class="panel ai-hero">
+      <div>
+        <h2>🤖 AI 寫作助手</h2>
+        <p class="muted">自動整理小說資料成提示詞，不使用 API Token。</p>
+      </div>
+      <span class="pill">Meta AI Ready</span>
+    </article>
+
+    <div class="ai-task-grid">
+      <button type="button" onclick="selectAITask('continue')"><span>✍️</span><b>續寫章節</b><small>延續目前章節與人設</small></button>
+      <button type="button" onclick="selectAITask('polish')"><span>✨</span><b>潤飾正文</b><small>提升流暢度與畫面感</small></button>
+      <button type="button" onclick="selectAITask('rewrite')"><span>🔄</span><b>改寫片段</b><small>保留劇情重新表達</small></button>
+      <button type="button" onclick="selectAITask('plot')"><span>🧭</span><b>劇情發展</b><small>提供下一步劇情方案</small></button>
+      <button type="button" onclick="selectAITask('dialogue')"><span>💬</span><b>角色對話</b><small>依人物關係寫對話</small></button>
+      <button type="button" onclick="selectAITask('foreshadow')"><span>🪡</span><b>伏筆檢查</b><small>找出未收束與可埋伏筆</small></button>
+      <button type="button" onclick="selectAITask('logic')"><span>🧠</span><b>邏輯檢查</b><small>檢查人設與劇情矛盾</small></button>
+      <button type="button" onclick="selectAITask('custom')"><span>🎯</span><b>自訂任務</b><small>自己告訴 AI 要做什麼</small></button>
+    </div>
+
+    <article class="panel ai-config-panel">
+      <div class="form-grid-2">
+        <div>
+          <label>使用章節</label>
+          <select id="aiChapterSelect"></select>
+        </div>
+        <div>
+          <label>輸出風格</label>
+          <select id="aiStyleSelect">
+            <option value="原作風格">維持原作風格</option>
+            <option value="細膩古風">細膩古風</option>
+            <option value="電影感">電影感</option>
+            <option value="輕快自然">輕快自然</option>
+            <option value="高張力">高張力</option>
+            <option value="甜寵">甜寵</option>
+            <option value="權謀">權謀</option>
+          </select>
+        </div>
+      </div>
+
+      <label>自訂要求</label>
+      <textarea id="aiCustomInstruction" rows="4" placeholder="例如：祁玄燼要嘴硬、不要太快告白；夏若棠保持自然不做作。"></textarea>
+
+      <div class="ai-config-actions">
+        <button class="primary" type="button" onclick="generateAIPrompt()">✨ 產生提示詞</button>
+      </div>
+    </article>
+
+    <article class="panel ai-prompt-panel">
+      <div class="ai-prompt-head">
+        <div>
+          <b>📋 AI 提示詞</b>
+          <small id="aiPromptStats">尚未產生</small>
+        </div>
+        <div>
+          <button class="secondary small-btn" type="button" onclick="copyAIPrompt()">複製</button>
+          <button class="primary small-btn" type="button" onclick="openMetaAI()">開啟 Meta AI ↗</button>
+        </div>
+      </div>
+      <textarea id="aiPromptOutput" class="ai-prompt-output" placeholder="選擇任務後，按「產生提示詞」……"></textarea>
+    </article>
   </section>
 
   <section id="chaptersView" class="screen hidden">
@@ -544,6 +607,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v18-chapters"></script>
+<script src="app.js?v=20260808-v19-ai"></script>
 </body>
 </html>
