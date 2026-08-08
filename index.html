@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v171-cloud">
+  <link rel="stylesheet" href="style.css?v=20260808-v18-chapters">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -63,6 +63,7 @@
       <button class="module-card disabled" type="button"><span>🎒</span><b>物品</b><small>即將開放</small></button>
       <button class="module-card disabled" type="button"><span>🧩</span><b>伏筆</b><small>即將開放</small></button>
       <button class="module-card disabled" type="button"><span>📖</span><b>章節</b><small>即將開放</small></button>
+      <button class="module-card active" type="button" onclick="openChapters()"><span>📖</span><b>章節管理</b><small>正文 × 自動儲存</small></button>
       <button class="module-card active" type="button" onclick="openTimeline()"><span>📜</span><b>劇情時間線</b><small>事件 × 人物 × 勢力</small></button>
       <button class="module-card active" type="button" onclick="openRelationshipGraph()"><span>🕸️</span><b>關係圖譜</b><small>人物 × 勢力</small></button>
       <button class="module-card disabled" type="button"><span>🤖</span><b>AI 助手</b><small>即將開放</small></button>
@@ -225,6 +226,84 @@
     <div class="wizard-actions">
       <button class="secondary" type="button" onclick="cancelCharacterLinkEditor()">取消</button>
       <button id="saveCharacterLinkBtn" class="primary" type="button" onclick="saveCharacterLinkEditor()">💾 儲存關係</button>
+    </div>
+  </section>
+
+  <section id="chaptersView" class="screen hidden">
+    <article class="panel chapter-hero">
+      <div>
+        <h2>📖 章節管理</h2>
+        <p class="muted">小說正文工作區。章節與內容會同步到 Google Drive。</p>
+        <div id="chapterCloudStatus" class="timeline-cloud-status">☁️ 等待雲端同步</div>
+      </div>
+      <div class="chapter-hero-actions">
+        <button class="secondary small-btn" type="button" onclick="refreshChaptersFromCloud()">↻ 同步</button>
+        <button class="primary small-btn" type="button" onclick="createChapter()">＋ 新增章節</button>
+      </div>
+    </article>
+
+    <article class="panel chapter-tools">
+      <div class="search-box"><span>🔍</span><input id="chapterSearch" type="search" placeholder="搜尋章名、正文、備註…" /></div>
+      <select id="chapterStatusFilter">
+        <option value="">全部狀態</option>
+        <option>構思</option><option>草稿</option><option>修稿</option><option>完成</option>
+      </select>
+    </article>
+
+    <div id="chapterStats" class="timeline-stats"></div>
+    <div id="chapterList" class="chapter-list"></div>
+    <div id="chapterEmpty" class="empty hidden">目前還沒有章節。</div>
+  </section>
+
+  <section id="chapterEditorView" class="screen hidden">
+    <article class="panel chapter-editor-head">
+      <div class="chapter-number-wrap">
+        <label>章序</label>
+        <input id="chapterNumber" type="number" min="1" />
+      </div>
+      <div class="chapter-title-wrap">
+        <label>章名</label>
+        <input id="chapterTitle" placeholder="例如：若棠初入王府" />
+      </div>
+      <div>
+        <label>狀態</label>
+        <select id="chapterStatus"><option>構思</option><option>草稿</option><option>修稿</option><option>完成</option></select>
+      </div>
+    </article>
+
+    <article class="panel chapter-editor-meta">
+      <div>
+        <label>關聯事件</label>
+        <div id="chapterEventChecks" class="timeline-check-grid"></div>
+      </div>
+      <div>
+        <label>出場人物</label>
+        <div id="chapterCharacterChecks" class="timeline-check-grid"></div>
+      </div>
+    </article>
+
+    <article class="panel chapter-writing-panel">
+      <div class="chapter-writing-toolbar">
+        <div>
+          <b>✍️ 正文</b>
+          <small id="chapterSaveState">尚未儲存</small>
+        </div>
+        <div class="chapter-writing-stats">
+          <span id="chapterCharCount">0 字</span>
+          <span id="chapterWordCount">0 段</span>
+        </div>
+      </div>
+      <textarea id="chapterContent" class="chapter-content" placeholder="從這裡開始寫故事……"></textarea>
+    </article>
+
+    <article class="panel">
+      <label>章節備註</label>
+      <textarea id="chapterNotes" rows="3" placeholder="伏筆、修改提醒、下一章銜接等"></textarea>
+    </article>
+
+    <div class="bottom-actions chapter-editor-actions">
+      <button class="secondary" type="button" onclick="closeChapterEditor()">← 返回章節</button>
+      <button class="primary" type="button" onclick="saveChapterNow(true)">💾 立即儲存</button>
     </div>
   </section>
 
@@ -465,6 +544,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v171-cloud"></script>
+<script src="app.js?v=20260808-v18-chapters"></script>
 </body>
 </html>

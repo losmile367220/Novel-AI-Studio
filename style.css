@@ -972,3 +972,44 @@ button:disabled{
     white-space:nowrap;
   }
 }
+
+
+/* =========================================================
+   v1.8 Chapter Manager
+   ========================================================= */
+.chapter-hero{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.chapter-hero h2{margin:0 0 4px}
+.chapter-hero-actions{display:flex;gap:7px}
+.chapter-tools{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:8px;margin-top:12px}
+.chapter-list{display:grid;gap:8px}
+.chapter-card{width:100%;display:grid;grid-template-columns:70px minmax(0,1fr) 18px;gap:10px;align-items:center;padding:13px 14px;border:1px solid var(--border);border-radius:17px;background:#fff;text-align:left;box-shadow:var(--shadow)}
+.chapter-no{font-size:11px;font-weight:900;color:var(--primary-dark)}
+.chapter-card-copy{min-width:0}
+.chapter-card-copy b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chapter-card-copy small{display:block;margin-top:4px;font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chapter-arrow{font-size:18px;color:#b7b3c7}
+.chapter-editor-head{display:grid;grid-template-columns:100px minmax(0,1fr) 150px;gap:10px}
+.chapter-editor-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+.chapter-writing-panel{margin-top:10px;padding:0;overflow:hidden}
+.chapter-writing-toolbar{display:flex;justify-content:space-between;gap:10px;padding:11px 13px;border-bottom:1px solid var(--border);background:#faf9ff}
+.chapter-writing-toolbar b{display:block;font-size:12px}
+.chapter-writing-toolbar small{display:block;margin-top:2px;font-size:9px;color:var(--muted)}
+.chapter-writing-stats{display:flex;align-items:center;gap:6px}
+.chapter-writing-stats span{padding:5px 7px;border-radius:999px;background:var(--primary-soft);color:var(--primary-dark);font-size:9px;font-weight:800}
+.chapter-content{min-height:52vh;border:0;border-radius:0!important;resize:vertical;padding:18px;font-size:14px!important;line-height:1.9!important;background:#fff!important}
+.chapter-content:focus{box-shadow:none!important}
+.chapter-editor-actions{margin-top:10px}
+@media(min-width:900px){
+  #chaptersView,#chapterEditorView{max-width:1100px;margin-left:auto;margin-right:auto}
+  .chapter-card{grid-template-columns:90px minmax(0,1fr) 20px;padding:15px 18px}
+  .chapter-card-copy b{font-size:15px}.chapter-card-copy small{font-size:10px}
+  .chapter-content{min-height:58vh;font-size:15px!important;padding:26px 30px}
+}
+@media(max-width:600px){
+  .chapter-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start}
+  .chapter-hero-actions{flex-direction:column-reverse}
+  .chapter-tools{grid-template-columns:1fr}
+  .chapter-card{grid-template-columns:58px minmax(0,1fr) 14px;padding:11px}
+  .chapter-editor-head,.chapter-editor-meta{grid-template-columns:1fr}
+  .chapter-content{min-height:56vh;padding:14px;font-size:13px!important}
+}

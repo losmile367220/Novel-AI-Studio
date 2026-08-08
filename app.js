@@ -18,6 +18,10 @@ let currentFactionSection = "basic";
 let factionEditorReturn = "factions";
 let relations = [];
 let relationReturn = "detail";
+let chapters = [];
+let currentChapter = null;
+let chapterSaveTimer = null;
+let chapterDirty = false;
 let timelineEvents = [];
 let editingTimelineEventId = "";
 let timelineReturn = "novel";
@@ -43,7 +47,9 @@ const screens = {
   characterLinkEditor: document.getElementById("characterLinkEditorView"),
   relationshipGraph: document.getElementById("relationshipGraphView"),
   timeline: document.getElementById("timelineView"),
-  timelineEditor: document.getElementById("timelineEditorView")
+  timelineEditor: document.getElementById("timelineEditorView"),
+  chapters: document.getElementById("chaptersView"),
+  chapterEditor: document.getElementById("chapterEditorView")
 };
 
 const sectionGroups = {
@@ -185,7 +191,9 @@ function showScreen(name) {
     characterLinkEditor:["👥 人物關係",currentNovel?.["書名"] || ""],
     relationshipGraph:["🕸️ 關係圖譜",currentNovel?.["書名"] || ""],
     timeline:["📜 劇情時間線",currentNovel?.["書名"] || ""],
-    timelineEditor:["✍️ 編輯事件",currentNovel?.["書名"] || ""]
+    timelineEditor:["✍️ 編輯事件",currentNovel?.["書名"] || ""],
+    chapters:["📖 章節管理",currentNovel?.["書名"] || ""],
+    chapterEditor:["✍️ 章節編輯器",currentNovel?.["書名"] || ""]
   };
   document.getElementById("pageTitle").textContent = titles[name][0];
   document.getElementById("pageSubtitle").textContent = titles[name][1];
@@ -518,6 +526,144 @@ document.getElementById("roleFilters").addEventListener("click", event => {
   button.classList.add("active"); renderCharacters();
 });
 
+
+/* =========================================================
+ * v1.8 Chapter Manager
+ * Google Drive chapters.json + 自動儲存正文
+ * =======================================================*/
+function setChapterCloudStatus(text,state=""){
+  const el=document.getElementById("chapterCloudStatus");
+  if(!el)return;
+  el.textContent=text; el.dataset.state=state;
+}
+function chapterCharCount(text){ return String(text||"").replace(/\s/g,"").length; }
+function chapterParagraphCount(text){ return String(text||"").split(/\n+/).map(x=>x.trim()).filter(Boolean).length; }
+
+async function openChapters(){
+  showScreen("chapters");
+  try{ await loadTimelineFromCloud({allowMigration:false}); }catch(e){ console.warn("章節關聯事件讀取失敗",e); }
+  renderChapters();
+  await refreshChaptersFromCloud(false);
+}
+async function refreshChaptersFromCloud(showMessage=true){
+  try{
+    setChapterCloudStatus("☁️ 正在同步 Google Drive…","syncing");
+    chapters=await apiGet("getChapters",{novelId:currentNovel["ID"]})||[];
+    chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
+    setChapterCloudStatus(`☁️ Google Drive 已同步 · ${chapters.length} 章`,"ok");
+    renderChapters();
+    if(showMessage)showToast("✅ 章節已同步");
+  }catch(e){
+    console.error(e);
+    setChapterCloudStatus("⚠️ 雲端同步失敗","error");
+    showToast(e.message||"章節同步失敗");
+  }
+}
+function renderChapters(){
+  const q=(document.getElementById("chapterSearch")?.value||"").trim().toLowerCase();
+  const status=document.getElementById("chapterStatusFilter")?.value||"";
+  const rows=chapters.filter(ch=>{
+    if(status&&ch.status!==status)return false;
+    if(!q)return true;
+    return [ch.title,ch.content,ch.notes,ch.status].join(" ").toLowerCase().includes(q);
+  });
+  const totalChars=chapters.reduce((n,ch)=>n+chapterCharCount(ch.content),0);
+  const completed=chapters.filter(ch=>ch.status==="完成").length;
+  document.getElementById("chapterStats").innerHTML=`
+    <div><b>${chapters.length}</b><small>總章數</small></div>
+    <div><b>${totalChars.toLocaleString()}</b><small>正文總字數</small></div>
+    <div><b>${completed}</b><small>已完成</small></div>`;
+  const box=document.getElementById("chapterList"),empty=document.getElementById("chapterEmpty");
+  if(!rows.length){
+    box.innerHTML=""; empty.classList.remove("hidden");
+    empty.textContent=chapters.length?"沒有符合篩選條件的章節。":"目前還沒有章節，建立第一章吧。"; return;
+  }
+  empty.classList.add("hidden");
+  box.innerHTML=rows.map(ch=>{
+    const chars=(ch.characterIds||[]).map(id=>characterById(id)).filter(Boolean);
+    const events=(ch.eventIds||[]).map(id=>timelineEvents.find(e=>e.id===id)).filter(Boolean);
+    return `<button class="chapter-card" type="button" onclick="openChapterEditor('${safeAttr(ch.id)}')">
+      <span class="chapter-no">第 ${Number(ch.number)||"?"} 章</span>
+      <span class="chapter-card-copy"><b>${escapeHtml(ch.title||"未命名章節")}</b>
+      <small>${escapeHtml(ch.status||"草稿")} · ${chapterCharCount(ch.content).toLocaleString()} 字${chars.length?` · 👤 ${chars.map(c=>escapeHtml(c.name)).join("、")}`:""}${events.length?` · 📜 ${events.length} 事件`:""}</small></span>
+      <span class="chapter-arrow">›</span>
+    </button>`;
+  }).join("");
+}
+async function createChapter(){
+  const next=chapters.length?Math.max(...chapters.map(c=>Number(c.number)||0))+1:1;
+  currentChapter={id:"",number:next,title:"",status:"草稿",content:"",notes:"",characterIds:[],eventIds:[]};
+  fillChapterEditor(currentChapter); showScreen("chapterEditor");
+}
+function openChapterEditor(id){
+  const ch=chapters.find(x=>x.id===id); if(!ch)return showToast("找不到章節");
+  currentChapter={...ch}; fillChapterEditor(currentChapter); showScreen("chapterEditor");
+}
+function fillChapterEditor(ch){
+  chapterDirty=false;
+  document.getElementById("chapterNumber").value=ch.number||1;
+  document.getElementById("chapterTitle").value=ch.title||"";
+  document.getElementById("chapterStatus").value=ch.status||"草稿";
+  document.getElementById("chapterContent").value=ch.content||"";
+  document.getElementById("chapterNotes").value=ch.notes||"";
+  const cs=new Set(ch.characterIds||[]), es=new Set(ch.eventIds||[]);
+  document.getElementById("chapterCharacterChecks").innerHTML=characters.length?characters.map(c=>`<label class="timeline-check"><input type="checkbox" value="${safeAttr(c.id)}" ${cs.has(c.id)?"checked":""}><span>${emojiForRole(c.role)} ${escapeHtml(c.name||"未命名人物")}</span></label>`).join(""):'<div class="muted">尚未建立人物</div>';
+  document.getElementById("chapterEventChecks").innerHTML=timelineEvents.length?timelineEvents.map(e=>`<label class="timeline-check"><input type="checkbox" value="${safeAttr(e.id)}" ${es.has(e.id)?"checked":""}><span>${timelineTypeEmoji(e.type)} ${escapeHtml(e.title||"未命名事件")}</span></label>`).join(""):'<div class="muted">尚未建立事件</div>';
+  updateChapterWritingStats(); setChapterSaveState("☁️ 已載入");
+}
+function updateChapterWritingStats(){
+  const text=document.getElementById("chapterContent").value;
+  document.getElementById("chapterCharCount").textContent=`${chapterCharCount(text).toLocaleString()} 字`;
+  document.getElementById("chapterWordCount").textContent=`${chapterParagraphCount(text)} 段`;
+}
+function setChapterSaveState(text){ const el=document.getElementById("chapterSaveState"); if(el)el.textContent=text; }
+function markChapterDirty(){
+  chapterDirty=true; setChapterSaveState("● 尚未儲存");
+  clearTimeout(chapterSaveTimer);
+  chapterSaveTimer=setTimeout(()=>saveChapterNow(false),1200);
+}
+async function saveChapterNow(showMessage=false){
+  if(!currentChapter)return;
+  clearTimeout(chapterSaveTimer);
+  const title=document.getElementById("chapterTitle").value.trim();
+  const content=document.getElementById("chapterContent").value;
+  if(!title && !content.trim()){
+    if(showMessage)showToast("章名或正文至少要有一項內容");
+    return;
+  }
+  const data={
+    number:Number(document.getElementById("chapterNumber").value)||1,
+    title:title||`第 ${Number(document.getElementById("chapterNumber").value)||1} 章`,
+    status:document.getElementById("chapterStatus").value,
+    content,
+    notes:document.getElementById("chapterNotes").value.trim(),
+    characterIds:[...document.querySelectorAll("#chapterCharacterChecks input:checked")].map(x=>x.value),
+    eventIds:[...document.querySelectorAll("#chapterEventChecks input:checked")].map(x=>x.value)
+  };
+  setChapterSaveState("☁️ 儲存中…");
+  try{
+    const saved=await apiPost("saveChapter",{novelId:currentNovel["ID"],chapterId:currentChapter.id||"",data});
+    currentChapter={...saved};
+    const i=chapters.findIndex(x=>x.id===saved.id);
+    if(i>=0)chapters[i]=saved; else chapters.push(saved);
+    chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
+    chapterDirty=false;
+    setChapterSaveState(`☁️ 已儲存 · ${new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`);
+    if(showMessage)showToast("✅ 章節已儲存到 Google Drive");
+  }catch(e){ console.error(e); setChapterSaveState("⚠️ 儲存失敗"); showToast(e.message||"章節儲存失敗"); }
+}
+async function closeChapterEditor(){
+  if(chapterDirty) await saveChapterNow(false);
+  currentChapter=null; showScreen("chapters"); renderChapters();
+}
+document.getElementById("chapterSearch").addEventListener("input",renderChapters);
+document.getElementById("chapterStatusFilter").addEventListener("change",renderChapters);
+["chapterNumber","chapterTitle","chapterStatus","chapterContent","chapterNotes"].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener(id==="chapterContent"?"input":"change",()=>{ if(id==="chapterContent")updateChapterWritingStats(); markChapterDirty(); });
+});
+document.getElementById("chapterCharacterChecks").addEventListener("change",markChapterDirty);
+document.getElementById("chapterEventChecks").addEventListener("change",markChapterDirty);
 
 /* =========================================================
  * v1.7 Story Timeline
@@ -1488,6 +1634,8 @@ function jumpToCharacter(id){
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.chapterEditor.classList.contains("hidden")) return closeChapterEditor();
+  if (!screens.chapters.classList.contains("hidden")) return showScreen("novel");
   if (!screens.timelineEditor.classList.contains("hidden")) return cancelTimelineEditor();
   if (!screens.timeline.classList.contains("hidden")) return showScreen("novel");
   if (!screens.relationshipGraph.classList.contains("hidden")) return showScreen("novel");
