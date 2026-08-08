@@ -5,163 +5,155 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=2026080603">
+  <link rel="stylesheet" href="style.css?v=2026080802">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-  <header class="app-header">
-    <button id="backBtn" class="header-btn hidden" type="button" aria-label="返回">←</button>
-    <div class="header-copy">
-      <h1 id="pageTitle">📚 Novel AI Studio</h1>
-      <p id="pageSubtitle">小說世界，從一個角色開始。</p>
+<header class="app-header">
+  <button id="backBtn" class="header-btn hidden" type="button" aria-label="返回">←</button>
+  <div class="header-copy">
+    <h1 id="pageTitle">📚 Novel AI Studio</h1>
+    <p id="pageSubtitle">小說世界，從一個角色開始。</p>
+  </div>
+  <button id="logoutBtn" class="header-link hidden" type="button">登出</button>
+</header>
+
+<main id="appMain">
+  <section id="loginView" class="screen center-screen">
+    <div class="panel login-panel">
+      <div class="login-icon">✨</div>
+      <h2>登入小說創作室</h2>
+      <p class="muted">使用 Google 帳號登入，並由 Users 白名單確認權限。</p>
+      <div id="g_id_onload"
+           data-client_id="237913653612-71asrk9ehl4afhotoht1u8v99426seog.apps.googleusercontent.com"
+           data-callback="handleCredentialResponse"
+           data-auto_prompt="false"></div>
+      <div class="g_id_signin"
+           data-type="standard"
+           data-shape="pill"
+           data-theme="outline"
+           data-text="signin_with"
+           data-size="large"
+           data-logo_alignment="left"></div>
+      <div id="loginStatus" class="status-box">請登入 Google</div>
     </div>
-    <button id="logoutBtn" class="header-link hidden" type="button">登出</button>
-  </header>
+  </section>
 
-  <main id="appMain">
-    <section id="loginView" class="screen center-screen">
-      <div class="panel login-panel">
-        <div class="login-icon">✨</div>
-        <h2>登入小說創作室</h2>
-        <p class="muted">使用 Google 帳號登入，並由 Users 白名單確認權限。</p>
-        <div id="g_id_onload"
-             data-client_id="237913653612-71asrk9ehl4afhotoht1u8v99426seog.apps.googleusercontent.com"
-             data-callback="handleCredentialResponse"
-             data-auto_prompt="false"></div>
-        <div class="g_id_signin"
-             data-type="standard"
-             data-shape="pill"
-             data-theme="outline"
-             data-text="signin_with"
-             data-size="large"
-             data-logo_alignment="left"></div>
-        <div id="loginStatus" class="status-box">請登入 Google</div>
+  <section id="novelsView" class="screen hidden">
+    <div class="section-head">
+      <h2>📖 我的小說</h2>
+      <p id="welcomeText" class="muted"></p>
+    </div>
+    <div id="novelList" class="stack"></div>
+  </section>
+
+  <section id="novelView" class="screen hidden">
+    <article class="panel novel-summary">
+      <div>
+        <h2 id="novelTitle">小說</h2>
+        <p id="novelLeads" class="muted"></p>
       </div>
-    </section>
+      <span id="novelStatus" class="pill">構思中</span>
+    </article>
+    <div class="module-grid">
+      <button class="module-card active" type="button" onclick="openCharacters()"><span>👥</span><b>人物</b><small id="characterCount">0 位</small></button>
+      <button class="module-card disabled" type="button"><span>🌍</span><b>世界觀</b><small>即將開放</small></button>
+      <button class="module-card disabled" type="button"><span>🏯</span><b>勢力</b><small>即將開放</small></button>
+      <button class="module-card disabled" type="button"><span>📍</span><b>地點</b><small>即將開放</small></button>
+      <button class="module-card disabled" type="button"><span>🎒</span><b>物品</b><small>即將開放</small></button>
+      <button class="module-card disabled" type="button"><span>🧩</span><b>伏筆</b><small>即將開放</small></button>
+      <button class="module-card disabled" type="button"><span>📖</span><b>章節</b><small>即將開放</small></button>
+      <button class="module-card disabled" type="button"><span>🤖</span><b>AI 助手</b><small>即將開放</small></button>
+    </div>
+  </section>
 
-    <section id="novelsView" class="screen hidden">
-      <div class="section-head">
-        <div>
-          <h2>📖 我的小說</h2>
-          <p id="welcomeText" class="muted"></p>
-        </div>
+  <section id="charactersView" class="screen hidden">
+    <div class="characters-tools">
+      <div class="search-wrap"><span>🔍</span><input id="characterSearch" type="search" placeholder="搜尋人物、身分、角色定位"></div>
+      <div id="roleFilters" class="filter-scroll">
+        <button class="filter-chip active" data-role="">全部</button>
+        <button class="filter-chip" data-role="男主">男主</button>
+        <button class="filter-chip" data-role="女主">女主</button>
+        <button class="filter-chip" data-role="反派">反派</button>
+        <button class="filter-chip" data-role="配角">配角</button>
+        <button class="filter-chip" data-role="其他">其他</button>
       </div>
-      <div id="novelList" class="stack"></div>
-    </section>
+    </div>
+    <div id="characterList" class="stack"></div>
+    <button class="fab" type="button" onclick="startNewCharacter()">＋</button>
+  </section>
 
-    <section id="novelView" class="screen hidden">
-      <article class="panel novel-summary">
-        <div>
-          <h2 id="novelTitle">小說</h2>
-          <p id="novelLeads" class="muted"></p>
-        </div>
-        <span id="novelStatus" class="pill">構思中</span>
-      </article>
-
-      <div class="module-grid">
-        <button class="module-card active" type="button" onclick="openCharacters()">
-          <span>👥</span><b>人物</b><small id="characterCount">0 位</small>
-        </button>
-        <button class="module-card disabled" type="button"><span>🌍</span><b>世界觀</b><small>即將開放</small></button>
-        <button class="module-card disabled" type="button"><span>🏯</span><b>勢力</b><small>即將開放</small></button>
-        <button class="module-card disabled" type="button"><span>🧩</span><b>伏筆</b><small>即將開放</small></button>
+  <section id="characterDetailView" class="screen hidden">
+    <article class="panel character-hero compact-hero">
+      <div id="detailEmoji" class="avatar">👤</div>
+      <div class="hero-copy">
+        <h2 id="detailName">角色</h2>
+        <p id="detailIdentity" class="muted"></p>
+        <div class="hero-meta"><span id="detailRole" class="pill"></span><span id="detailBasics" class="soft-meta"></span></div>
       </div>
-    </section>
+    </article>
+    <div id="detailMenu" class="settings-list"></div>
+    <div class="bottom-actions">
+      <button class="secondary" type="button" onclick="editCharacterFromDetail()">✏️ 編輯人物</button>
+      <button class="danger" type="button" onclick="deleteCurrentCharacter()">刪除</button>
+    </div>
+  </section>
 
-    <section id="charactersView" class="screen hidden">
-      <div class="characters-tools">
-        <div class="search-wrap">
-          <span>🔍</span>
-          <input id="characterSearch" type="search" placeholder="搜尋人物、身分、角色定位">
+  <section id="characterSectionView" class="screen hidden">
+    <div id="sectionCards" class="detail-sections"></div>
+    <div class="single-bottom"><button class="primary" type="button" onclick="editCurrentSection()">✏️ 編輯這一區</button></div>
+  </section>
+
+  <section id="characterWizardView" class="screen hidden">
+    <div class="wizard-progress">
+      <div id="wizardStepLabel" class="muted">步驟 1 / 4</div>
+      <div class="progress-track"><div id="wizardProgressBar" class="progress-bar"></div></div>
+    </div>
+    <form id="characterForm">
+      <input id="characterId" type="hidden">
+
+      <section class="wizard-step panel" data-step="1">
+        <h3>📋 基本資料</h3>
+        <label>姓名</label><input id="name" required placeholder="例如：祁玄燼">
+        <div class="two-col">
+          <div><label>角色定位</label><select id="role"><option>男主</option><option>女主</option><option>男二</option><option>女二</option><option>反派</option><option>配角</option><option>其他</option></select></div>
+          <div><label>性別</label><select id="gender"><option>男</option><option>女</option><option>其他</option></select></div>
         </div>
-        <div id="roleFilters" class="filter-scroll">
-          <button class="filter-chip active" data-role="">全部</button>
-          <button class="filter-chip" data-role="男主">男主</button>
-          <button class="filter-chip" data-role="女主">女主</button>
-          <button class="filter-chip" data-role="反派">反派</button>
-          <button class="filter-chip" data-role="配角">配角</button>
-          <button class="filter-chip" data-role="其他">其他</button>
-        </div>
-      </div>
-      <div id="characterList" class="stack"></div>
-      <button class="fab" type="button" onclick="openCharacterEditor()">＋</button>
-    </section>
+        <div class="two-col"><div><label>年齡</label><input id="age" placeholder="22"></div><div><label>身高</label><input id="height" placeholder="190cm"></div></div>
+        <label>身分</label><textarea id="identity" placeholder="大晉攝政王、戰神王爺……"></textarea>
+      </section>
 
-    <section id="characterDetailView" class="screen hidden">
-      <article class="panel character-hero">
-        <div>
-          <div id="detailEmoji" class="avatar">👤</div>
-          <h2 id="detailName">角色</h2>
-          <p id="detailMeta" class="muted"></p>
-        </div>
-        <span id="detailRole" class="pill"></span>
-      </article>
+      <section class="wizard-step panel hidden" data-step="2">
+        <h3>✨ 人物設定</h3>
+        <label>外貌</label><textarea id="appearance"></textarea>
+        <label>個性</label><textarea id="personality"></textarea>
+        <label>喜歡</label><textarea id="likes"></textarea>
+        <label>討厭</label><textarea id="dislikes"></textarea>
+      </section>
 
-      <div id="detailSections" class="detail-sections"></div>
+      <section class="wizard-step panel hidden" data-step="3">
+        <h3>⚔️ 能力與過去</h3>
+        <label>能力</label><textarea id="abilities"></textarea>
+        <label>缺點／弱點</label><textarea id="weakness"></textarea>
+        <label>童年／過去</label><textarea id="past"></textarea>
+      </section>
 
-      <div class="bottom-actions">
-        <button class="secondary" type="button" onclick="editCurrentCharacter()">編輯</button>
-        <button class="danger" type="button" onclick="deleteCurrentCharacter()">刪除</button>
-      </div>
-    </section>
+      <section class="wizard-step panel hidden" data-step="4">
+        <h3>🔒 關係與秘密</h3>
+        <label>秘密／隱藏身分</label><textarea id="secret"></textarea>
+        <label>與其他人物關係</label><textarea id="relationships"></textarea>
+        <label>備註</label><textarea id="notes"></textarea>
+      </section>
+    </form>
+    <div class="wizard-actions">
+      <button id="wizardPrevBtn" class="secondary" type="button" onclick="wizardPrevious()">取消</button>
+      <button id="wizardNextBtn" class="primary" type="button" onclick="wizardNext()">下一步</button>
+    </div>
+  </section>
+</main>
 
-    <section id="characterEditorView" class="screen hidden">
-      <form id="characterForm" class="editor-form">
-        <input id="characterId" type="hidden">
-
-        <section class="panel form-section">
-          <h3>基本資料</h3>
-          <label>姓名</label>
-          <input id="name" required placeholder="例如：祁玄燼">
-
-          <div class="two-col">
-            <div>
-              <label>角色定位</label>
-              <select id="role">
-                <option>男主</option><option>女主</option><option>男二</option>
-                <option>女二</option><option>反派</option><option>配角</option><option>其他</option>
-              </select>
-            </div>
-            <div>
-              <label>性別</label>
-              <select id="gender">
-                <option>男</option><option>女</option><option>其他</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="two-col">
-            <div><label>年齡</label><input id="age" placeholder="22"></div>
-            <div><label>身高</label><input id="height" placeholder="190cm"></div>
-          </div>
-        </section>
-
-        <section class="panel form-section">
-          <h3>角色設定</h3>
-          <label>身分</label><textarea id="identity"></textarea>
-          <label>外貌</label><textarea id="appearance"></textarea>
-          <label>個性</label><textarea id="personality"></textarea>
-          <label>喜歡</label><textarea id="likes"></textarea>
-          <label>討厭</label><textarea id="dislikes"></textarea>
-          <label>能力</label><textarea id="abilities"></textarea>
-          <label>缺點／弱點</label><textarea id="weakness"></textarea>
-          <label>童年／過去</label><textarea id="past"></textarea>
-          <label>秘密／隱藏身分</label><textarea id="secret"></textarea>
-          <label>與其他人物關係</label><textarea id="relationships"></textarea>
-          <label>備註</label><textarea id="notes"></textarea>
-        </section>
-
-        <div class="sticky-save">
-          <button class="secondary" type="button" onclick="cancelEditor()">取消</button>
-          <button id="saveCharacterBtn" class="primary" type="submit">💾 儲存人物</button>
-        </div>
-      </form>
-    </section>
-  </main>
-
-  <div id="toast" class="toast hidden"></div>
-
-  <script src="config.js?v=2026080603"></script>
-  <script src="app.js?v=2026080603"></script>
+<div id="toast" class="toast hidden"></div>
+<script src="config.js?v=2026080802"></script>
+<script src="app.js?v=2026080802"></script>
 </body>
 </html>
