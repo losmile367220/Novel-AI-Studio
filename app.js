@@ -44,29 +44,95 @@ async function handleCredentialResponse(response) {
   } catch (error) { status.textContent = `❌ ${error.message}`; }
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      throw new Error("連線逾時，請再試一次。");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function apiGet(action, params = {}) {
   const url = new URL(APP_CONFIG.GAS_API_URL);
   url.searchParams.set("action", action);
   url.searchParams.set("idToken", currentIdToken);
-  url.searchParams.set("_t", Date.now());
-  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k,v));
-  const response = await fetch(url.toString(), { cache:"no-store", redirect:"follow" });
+  url.searchParams.set("_t", Date.now().toString());
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      url.searchParams.set(key, value);
+    }
+  });
+
+  const response = await fetchWithTimeout(
+    url.toString(),
+    {
+      method: "GET",
+      cache: "no-store",
+      redirect: "follow"
+    },
+    20000
+  );
+
   const text = await response.text();
   let result;
-  try { result = JSON.parse(text); } catch { throw new Error("Apps Script 回傳格式錯誤"); }
-  if (!result.success) throw new Error(result.error || "API 操作失敗");
+
+  try {
+    result = JSON.parse(text);
+  } catch {
+    throw new Error("Apps Script 回傳格式錯誤，請確認部署版本。");
+  }
+
+  if (!result.success) {
+    throw new Error(result.error || "API 操作失敗");
+  }
+
   return result.data;
 }
 
 async function apiPost(action, payload = {}) {
-  const response = await fetch(APP_CONFIG.GAS_API_URL, {
-    method:"POST", redirect:"follow", headers:{"Content-Type":"text/plain;charset=utf-8"},
-    body:JSON.stringify({action, idToken:currentIdToken, ...payload})
-  });
+  const response = await fetchWithTimeout(
+    APP_CONFIG.GAS_API_URL,
+    {
+      method: "POST",
+      cache: "no-store",
+      redirect: "follow",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({
+        action,
+        idToken: currentIdToken,
+        ...payload
+      })
+    },
+    25000
+  );
+
   const text = await response.text();
   let result;
-  try { result = JSON.parse(text); } catch { throw new Error("Apps Script 回傳格式錯誤"); }
-  if (!result.success) throw new Error(result.error || "API 操作失敗");
+
+  try {
+    result = JSON.parse(text);
+  } catch {
+    throw new Error("Apps Script 回傳格式錯誤，請確認部署版本。");
+  }
+
+  if (!result.success) {
+    throw new Error(result.error || "API 操作失敗");
+  }
+
   return result.data;
 }
 
@@ -206,29 +272,110 @@ async function wizardNext() {
 async function saveWizardCharacter() {
   const characterId = document.getElementById("characterId").value.trim();
   const button = document.getElementById("wizardNextBtn");
-  const fields = ["name","role","gender","age","height","identity","appearance","personality","likes","dislikes","abilities","weakness","past","secret","relationships","notes"];
-  const data = Object.fromEntries(fields.map(id => [id, document.getElementById(id).value.trim()]));
+
+  const fields = [
+    "name","role","gender","age","height","identity",
+    "appearance","personality","likes","dislikes",
+    "abilities","weakness","past","secret",
+    "relationships","notes"
+  ];
+
+  const data = Object.fromEntries(
+    fields.map(id => [
+      id,
+      document.getElementById(id).value.trim()
+    ])
+  );
+
   data.status = "存活";
-  button.disabled = true; button.textContent = "儲存中……";
+
+  button.disabled = true;
+  button.textContent = "☁️ 儲存中……";
+  showToast("正在儲存到雲端…");
+
   try {
-    const saved = characterId ? await apiPost("saveCharacter", {novelId:currentNovel["ID"], characterId, data}) : await apiPost("createCharacter", {novelId:currentNovel["ID"], data});
-    characters = await apiGet("getCharacters", {novelId:currentNovel["ID"]});
-    document.getElementById("characterCount").textContent = `${characters.length} 位`;
-    currentCharacter = characters.find(c => c.id === saved.id) || saved;
-    showToast(characterId ? "人物已更新" : "人物已建立");
-    openCharacterDetail(currentCharacter.id);
-  } catch (e) { showToast(e.message); }
-  finally { button.disabled = false; renderWizardStep(); }
+    let saved;
+
+    if (characterId) {
+      saved = await apiPost("saveCharacter", {
+        novelId: currentNovel["ID"],
+        characterId,
+        data
+      });
+
+      // 直接使用後端回傳的新資料更新本機，不再重新 GET characters.json
+      const index = characters.findIndex(
+        character => character.id === saved.id
+      );
+
+      if (index >= 0) {
+        characters[index] = saved;
+      } else {
+        characters.push(saved);
+      }
+
+      currentCharacter = saved;
+      showToast("✅ 人物已更新");
+
+    } else {
+      saved = await apiPost("createCharacter", {
+        novelId: currentNovel["ID"],
+        data
+      });
+
+      // 新人物直接加入本機陣列，不再重新讀整份 JSON
+      characters.push(saved);
+      currentCharacter = saved;
+      showToast("✅ 人物已建立");
+    }
+
+    document.getElementById("characterCount").textContent =
+      `${characters.length} 位`;
+
+    openCharacterDetail(saved.id);
+
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "儲存失敗，請再試一次。");
+  } finally {
+    button.disabled = false;
+    renderWizardStep();
+  }
 }
 
 async function deleteCurrentCharacter() {
-  if (!currentCharacter || !confirm(`確定刪除「${currentCharacter.name}」？`)) return;
+  if (
+    !currentCharacter ||
+    !confirm(`確定刪除「${currentCharacter.name}」？`)
+  ) {
+    return;
+  }
+
+  const deletingId = currentCharacter.id;
+
   try {
-    await apiPost("deleteCharacter", {novelId:currentNovel["ID"], characterId:currentCharacter.id});
-    characters = await apiGet("getCharacters", {novelId:currentNovel["ID"]});
-    document.getElementById("characterCount").textContent = `${characters.length} 位`;
-    currentCharacter = null; renderCharacters(); showScreen("characters"); showToast("人物已刪除");
-  } catch (e) { showToast(e.message); }
+    await apiPost("deleteCharacter", {
+      novelId: currentNovel["ID"],
+      characterId: deletingId
+    });
+
+    // 本機直接刪除，不再重新 GET 整份人物
+    characters = characters.filter(
+      character => character.id !== deletingId
+    );
+
+    document.getElementById("characterCount").textContent =
+      `${characters.length} 位`;
+
+    currentCharacter = null;
+    renderCharacters();
+    showScreen("characters");
+    showToast("✅ 人物已刪除");
+
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "刪除失敗。");
+  }
 }
 
 document.getElementById("characterSearch").addEventListener("input", renderCharacters);
@@ -260,3 +407,34 @@ function emojiForRole(role) { return role === "男主" ? "👑" : role === "女�
 function showToast(message) { const t=document.getElementById("toast");t.textContent=message;t.classList.remove("hidden");clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>t.classList.add("hidden"),2400); }
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function safeAttr(value) { return String(value ?? "").replace(/['"\\]/g,""); }
+
+
+/* =========================================================
+ * v1.1.1 Speed Fix
+ * 手機按鈕事件使用正式 listener，不依賴 inline onclick
+ * =======================================================*/
+(function bindWizardButtonsForMobile() {
+  const nextButton = document.getElementById("wizardNextBtn");
+  const prevButton = document.getElementById("wizardPrevBtn");
+
+  if (nextButton) {
+    nextButton.removeAttribute("onclick");
+    nextButton.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (!nextButton.disabled) {
+        wizardNext();
+      }
+    }, { passive: false });
+  }
+
+  if (prevButton) {
+    prevButton.removeAttribute("onclick");
+    prevButton.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      wizardPrevious();
+    }, { passive: false });
+  }
+})();

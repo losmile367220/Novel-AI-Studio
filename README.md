@@ -1,25 +1,29 @@
-# Novel AI Studio v1.1 Stable — Mobile First
+# Novel AI Studio v1.1.1 Speed Fix
 
-本版完成手機人物系統收尾：
+這版專門修正手機人物編輯速度與即時更新問題。
 
-- 人物列表縮短，手機一次可看到更多角色
-- 搜尋人物
-- 男主 / 女主 / 反派 / 配角 / 其他篩選
-- 篩選列可橫向滑動，不再切到第一顆按鈕
-- iOS 設定風人物詳細頁
-- 基本資料 / 人物設定 / 能力與過去 / 人際關係 / 秘密 / 備註 分區
-- 四步驟新增人物
-- 四步驟編輯人物，可從指定分區直接進入對應步驟
-- 底部固定操作列與 iPhone safe-area
-- 新增 / 修改 / 刪除同步 Google Drive characters.json
-- 已加入 cache-busting 版本號
+## 修正
+- 「下一步 / 上一步」改成正式 JavaScript event listener
+- 第 1～4 步完全本機切換，不連 Apps Script
+- 儲存人物只呼叫一次 POST
+- 儲存成功後直接使用後端回傳的新人物資料更新畫面
+- 不再儲存後重新 GET 整份 characters.json
+- 刪除後也不再重新 GET
+- API 加入逾時提示，避免無限「儲存中」
+- 更新 cache-busting 版本號
 
-## 更新方式
-將以下 4 個檔案覆蓋 GitHub Repository 根目錄：
+## 預期體感
+- 下一步：立即切換
+- 備註改成「測試123」：儲存成功後立刻看到
+- 編輯人物：比上一版少一次雲端請求
+- 新增人物：比上一版少一次雲端請求
 
+## 更新 GitHub
+只需要覆蓋：
 - index.html
 - style.css
-- config.js
 - app.js
 
-本次 Apps Script 後端不用修改，也不用重新部署。
+config.js 沒有功能變更，可以不覆蓋。
+
+Apps Script 本次不用修改、不用重新部署。
