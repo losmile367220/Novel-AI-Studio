@@ -16,6 +16,8 @@ let filteredFactionType = "";
 let currentFaction = null;
 let currentFactionSection = "basic";
 let factionEditorReturn = "factions";
+let relations = [];
+let relationReturn = "detail";
 
 const screens = {
   login: document.getElementById("loginView"),
@@ -31,7 +33,8 @@ const screens = {
   factions: document.getElementById("factionsView"),
   factionDetail: document.getElementById("factionDetailView"),
   factionSection: document.getElementById("factionSectionView"),
-  factionEditor: document.getElementById("factionEditorView")
+  factionEditor: document.getElementById("factionEditorView"),
+  relationEditor: document.getElementById("relationEditorView")
 };
 
 const sectionGroups = {
@@ -168,7 +171,8 @@ function showScreen(name) {
     factions:["🏯 勢力資料庫",currentNovel?.["書名"] || ""],
     factionDetail:[currentFaction ? `${factionEmoji(currentFaction.type)} ${currentFaction.name}` : "🏯 勢力",currentNovel?.["書名"] || ""],
     factionSection:[factionSectionGroups[currentFactionSection]?.title || "勢力資料",currentFaction?.name || ""],
-    factionEditor:[document.getElementById("factionId")?.value ? "✏️ 編輯勢力" : "＋ 新增勢力",currentNovel?.["書名"] || ""]
+    factionEditor:[document.getElementById("factionId")?.value ? "✏️ 編輯勢力" : "＋ 新增勢力",currentNovel?.["書名"] || ""],
+    relationEditor:["🔗 關聯系統",currentNovel?.["書名"] || ""]
   };
   document.getElementById("pageTitle").textContent = titles[name][0];
   document.getElementById("pageSubtitle").textContent = titles[name][1];
@@ -198,6 +202,7 @@ async function openNovel(novelId) {
     document.getElementById("characterCount").textContent = `${characters.length} 位`;
   } catch (e) { document.getElementById("characterCount").textContent = "讀取失敗"; }
   try { factions = await apiGet("getFactions", {novelId:currentNovel["ID"]}); document.getElementById("factionCount").textContent = `${factions.length} 個`; } catch(e) { document.getElementById("factionCount").textContent = "讀取失敗"; }
+  try { relations = await apiGet("getRelations", {novelId:currentNovel["ID"]}) || []; } catch(e) { console.warn("關聯資料讀取失敗", e); relations = []; }
 }
 
 async function openCharacters() {
@@ -240,6 +245,7 @@ function openCharacterDetail(characterId) {
     const preview = group.fields.map(([,field]) => currentCharacter[field]).find(Boolean) || "尚未設定";
     return `<button class="settings-row" type="button" onclick="openCharacterSection('${key}')"><span class="settings-icon">${group.icon}</span><span><span class="settings-title">${group.title.replace(/^..\s/,"")}</span><span class="settings-preview">${escapeHtml(preview)}</span></span><span class="settings-arrow">›</span></button>`;
   }).join("");
+  renderCharacterRelations();
   showScreen("detail");
 }
 
@@ -478,7 +484,7 @@ const factionSectionGroups={
 function factionEmoji(type){return ({"皇室／朝廷":"👑","王府":"🏯","商會":"💰","江湖門派":"⚔️","情報／殺手組織":"🌑","家族／世家":"🏛️","軍隊":"🛡️"})[type]||"🏯"}
 async function openFactions(){showScreen("factions");factionList.innerHTML='<div class="empty">正在讀取勢力……</div>';try{factions=await apiGet("getFactions",{novelId:currentNovel["ID"]})||[];factionCount.textContent=`${factions.length} 個`;renderFactions()}catch(e){factionList.innerHTML=`<div class="empty">${escapeHtml(e.message)}</div>`}}
 function renderFactions(){const q=factionSearch.value.trim().toLowerCase();const rows=factions.filter(f=>(!filteredFactionType||f.type===filteredFactionType)&&`${f.name||""} ${f.type||""} ${f.leader||""} ${f.stance||""} ${f.location||""}`.toLowerCase().includes(q));factionList.innerHTML=rows.length?rows.map(f=>`<button class="character-card" type="button" onclick="openFactionDetail('${safeAttr(f.id)}')"><div class="character-avatar">${factionEmoji(f.type)}</div><div class="copy"><div class="card-title">${escapeHtml(f.name||"未命名勢力")}</div><div class="card-meta">${escapeHtml(f.type||"未分類")} · ${escapeHtml(f.leader||f.stance||"尚未設定")}</div></div><div class="character-arrow">›</div></button>`).join(""):'<div class="empty">找不到符合條件的勢力。</div>'}
-function openFactionDetail(id){currentFaction=factions.find(f=>f.id===id);if(!currentFaction)return showToast("找不到勢力");factionDetailEmoji.textContent=factionEmoji(currentFaction.type);factionDetailName.textContent=currentFaction.name||"未命名勢力";factionDetailSummary.textContent=currentFaction.leader?`領袖：${currentFaction.leader}`:(currentFaction.location||"尚未設定領袖");factionDetailType.textContent=currentFaction.type||"未分類";factionDetailStance.textContent=currentFaction.stance||"";factionDetailMenu.innerHTML=Object.entries(factionSectionGroups).map(([k,g])=>{const p=g.fields.map(([,x])=>currentFaction[x]).find(Boolean)||"尚未設定";return `<button class="settings-row" type="button" onclick="openFactionSection('${k}')"><span class="settings-icon">${g.icon}</span><span class="settings-copy"><span class="settings-title">${g.title.replace(/^..\\s/,"")}</span><span class="settings-preview">${escapeHtml(p)}</span></span><span class="settings-arrow">›</span></button>`}).join("");showScreen("factionDetail")}
+function openFactionDetail(id){currentFaction=factions.find(f=>f.id===id);if(!currentFaction)return showToast("找不到勢力");factionDetailEmoji.textContent=factionEmoji(currentFaction.type);factionDetailName.textContent=currentFaction.name||"未命名勢力";factionDetailSummary.textContent=currentFaction.leader?`領袖：${currentFaction.leader}`:(currentFaction.location||"尚未設定領袖");factionDetailType.textContent=currentFaction.type||"未分類";factionDetailStance.textContent=currentFaction.stance||"";factionDetailMenu.innerHTML=Object.entries(factionSectionGroups).map(([k,g])=>{const p=g.fields.map(([,x])=>currentFaction[x]).find(Boolean)||"尚未設定";return `<button class="settings-row" type="button" onclick="openFactionSection('${k}')"><span class="settings-icon">${g.icon}</span><span class="settings-copy"><span class="settings-title">${g.title.replace(/^..\\s/,"")}</span><span class="settings-preview">${escapeHtml(p)}</span></span><span class="settings-arrow">›</span></button>`}).join("");renderFactionRelations();showScreen("factionDetail")}
 function openFactionSection(k){currentFactionSection=k;const g=factionSectionGroups[k];factionSectionCards.innerHTML=g.fields.map(([l,x])=>`<article class="detail-card"><h3>${escapeHtml(l)}</h3><p>${escapeHtml(currentFaction[x]||"尚未設定")}</p></article>`).join("");showScreen("factionSection")}
 function startNewFaction(){currentFaction=null;openFactionEditor("basic","factions")}
 function editFactionFromDetail(){openFactionEditor("basic","factionDetail")}
@@ -497,7 +503,139 @@ document.getElementById("roleFilters").addEventListener("click", event => {
   button.classList.add("active"); renderCharacters();
 });
 
+
+/* =========================================================
+ * v1.4 Relations — 人物 × 勢力雙向關聯
+ * 單一來源：relations.json
+ * =======================================================*/
+function characterById(id){ return characters.find(x => x.id === id); }
+function factionById(id){ return factions.find(x => x.id === id); }
+
+function renderCharacterRelations(){
+  const box = document.getElementById("characterRelationList");
+  if(!box || !currentCharacter) return;
+  const list = relations.filter(r => r.characterId === currentCharacter.id);
+  box.innerHTML = list.length ? list.map(r => {
+    const f = factionById(r.factionId);
+    return `<article class="relation-card">
+      <button class="relation-main" type="button" onclick="jumpToFaction('${safeAttr(r.factionId)}')">
+        <span class="relation-emoji">${f ? factionEmoji(f.type) : "🏯"}</span>
+        <span class="relation-copy"><b>${escapeHtml(f?.name || "已刪除的勢力")}</b><small>${escapeHtml(r.role || f?.type || "關聯勢力")}</small></span>
+        <span class="character-arrow">›</span>
+      </button>
+      <button class="relation-delete" type="button" onclick="deleteRelation('${safeAttr(r.id)}')">移除</button>
+    </article>`;
+  }).join("") : '<div class="relation-empty">尚未建立勢力關聯。</div>';
+}
+
+function renderFactionRelations(){
+  const box = document.getElementById("factionRelationList");
+  if(!box || !currentFaction) return;
+  const list = relations.filter(r => r.factionId === currentFaction.id);
+  box.innerHTML = list.length ? list.map(r => {
+    const c = characterById(r.characterId);
+    return `<article class="relation-card">
+      <button class="relation-main" type="button" onclick="jumpToCharacter('${safeAttr(r.characterId)}')">
+        <span class="relation-emoji">${c ? emojiForRole(c.role) : "👤"}</span>
+        <span class="relation-copy"><b>${escapeHtml(c?.name || "已刪除的人物")}</b><small>${escapeHtml(r.role || c?.role || "關聯人物")}</small></span>
+        <span class="character-arrow">›</span>
+      </button>
+      <button class="relation-delete" type="button" onclick="deleteRelation('${safeAttr(r.id)}')">移除</button>
+    </article>`;
+  }).join("") : '<div class="relation-empty">尚未建立人物關聯。</div>';
+}
+
+async function ensureRelationSources(){
+  if(!characters.length) characters = await apiGet("getCharacters",{novelId:currentNovel["ID"]}) || [];
+  if(!factions.length) factions = await apiGet("getFactions",{novelId:currentNovel["ID"]}) || [];
+}
+
+async function openRelationEditorFromCharacter(){
+  relationReturn = "detail";
+  try{
+    await ensureRelationSources();
+    fillRelationEditor(currentCharacter?.id || "", "");
+    showScreen("relationEditor");
+  }catch(e){ showToast(e.message || "讀取關聯資料失敗"); }
+}
+
+async function openRelationEditorFromFaction(){
+  relationReturn = "factionDetail";
+  try{
+    await ensureRelationSources();
+    fillRelationEditor("", currentFaction?.id || "");
+    showScreen("relationEditor");
+  }catch(e){ showToast(e.message || "讀取關聯資料失敗"); }
+}
+
+function fillRelationEditor(characterId="", factionId=""){
+  relationCharacterId.innerHTML = characters.map(c =>
+    `<option value="${safeAttr(c.id)}" ${c.id===characterId?"selected":""}>${escapeHtml(c.name || "未命名人物")}｜${escapeHtml(c.role || "未設定")}</option>`
+  ).join("");
+  relationFactionId.innerHTML = factions.map(f =>
+    `<option value="${safeAttr(f.id)}" ${f.id===factionId?"selected":""}>${escapeHtml(f.name || "未命名勢力")}｜${escapeHtml(f.type || "其他")}</option>`
+  ).join("");
+  relationRole.value = "";
+  relationNotes.value = "";
+}
+
+function cancelRelationEditor(){
+  if(relationReturn === "factionDetail" && currentFaction) return openFactionDetail(currentFaction.id);
+  if(currentCharacter) return openCharacterDetail(currentCharacter.id);
+  showScreen("novel");
+}
+
+async function saveRelationEditor(){
+  const characterId = relationCharacterId.value;
+  const factionId = relationFactionId.value;
+  const role = relationRole.value.trim();
+  const notes = relationNotes.value.trim();
+  if(!characterId || !factionId) return showToast("請選擇人物與勢力");
+
+  const btn = saveRelationBtn;
+  btn.disabled = true; btn.textContent = "☁️ 儲存中……";
+  try{
+    const saved = await apiPost("saveRelation",{
+      novelId:currentNovel["ID"],
+      data:{characterId,factionId,role,notes}
+    });
+    const i = relations.findIndex(r => r.id === saved.id);
+    if(i >= 0) relations[i] = saved; else relations.push(saved);
+    showToast("✅ 關聯已建立");
+    if(relationReturn === "factionDetail") openFactionDetail(factionId);
+    else openCharacterDetail(characterId);
+  }catch(e){
+    console.error(e); showToast(e.message || "關聯儲存失敗");
+  }finally{
+    btn.disabled=false; btn.textContent="💾 儲存關聯";
+  }
+}
+
+async function deleteRelation(id){
+  if(!confirm("確定移除這筆關聯？")) return;
+  try{
+    await apiPost("deleteRelation",{novelId:currentNovel["ID"],relationId:id});
+    relations = relations.filter(r => r.id !== id);
+    renderCharacterRelations(); renderFactionRelations();
+    showToast("✅ 關聯已移除");
+  }catch(e){ showToast(e.message || "移除失敗"); }
+}
+
+function jumpToFaction(id){
+  const f = factionById(id);
+  if(!f) return showToast("找不到這個勢力");
+  currentFaction = f;
+  openFactionDetail(id);
+}
+function jumpToCharacter(id){
+  const c = characterById(id);
+  if(!c) return showToast("找不到這個人物");
+  currentCharacter = c;
+  openCharacterDetail(id);
+}
+
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.relationEditor.classList.contains("hidden")) return cancelRelationEditor();
   if (!screens.factionEditor.classList.contains("hidden")) return cancelFactionEditor();
   if (!screens.factionSection.classList.contains("hidden")) return openFactionDetail(currentFaction.id);
   if (!screens.factionDetail.classList.contains("hidden")) return showScreen("factions");
