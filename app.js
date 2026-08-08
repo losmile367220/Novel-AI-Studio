@@ -81,6 +81,7 @@ const screens = {
   timelineEditor: document.getElementById("timelineEditorView"),
   chapters: document.getElementById("chaptersView"),
   chapterEditor: document.getElementById("chapterEditorView"),
+  consistency: document.getElementById("consistencyView"),
   aiWriter: document.getElementById("aiWriterView"),
   creativeWorkspace: document.getElementById("creativeWorkspaceView"),
   plotHooks: document.getElementById("plotHooksView"),
@@ -237,6 +238,7 @@ function showScreen(name) {
     timelineEditor:["✍️ 編輯事件",currentNovel?.["書名"] || ""],
     chapters:["📖 章節管理",currentNovel?.["書名"] || ""],
     chapterEditor:["✍️ 章節編輯器",currentNovel?.["書名"] || ""],
+    consistency:["🩺 一致性檢查",currentNovel?.["書名"] || ""],
     aiWriter:["🤖 AI 寫作助手",currentNovel?.["書名"] || ""],
     creativeWorkspace:["📝 創作工作台",currentNovel?.["書名"] || ""],
     plotHooks:["🧩 伏筆／線索",currentNovel?.["書名"] || ""],
@@ -2022,6 +2024,78 @@ ${body}`;
 }
 
 /* =========================================================
+ * v3.0 Story Consistency Center
+ * =======================================================*/
+let consistencyResults={suggestions:[],issues:[]};
+function consistencyChapterLabel(ch){return `第 ${Number(ch?.number)||"?"} 章｜${ch?.title||"未命名章節"}`}
+function consistencyEntityMap(list){return new Map((list||[]).map(x=>[x.id,x]))}
+function consistencyHasMention(text,name){name=String(name||"").trim();return name.length>=2&&String(text||"").includes(name)}
+function consistencyPushSuggestion(ch,kind,entity){consistencyResults.suggestions.push({type:"suggestion",chapterId:ch.id,chapterNumber:ch.number,chapterTitle:ch.title,kind,entityId:entity.id,entityName:entity.name||entity.title||"未命名",message:`正文提到「${entity.name||entity.title}」，但本章尚未關聯${kind}。`})}
+function consistencyScanMentions(ch){
+  const text=[ch.title,ch.content,ch.notes].join("\n");
+  const sets={"人物":new Set(ch.characterIds||[]),"地點":new Set(ch.locationIds||[]),"勢力":new Set(ch.factionIds||[]),"物品":new Set(ch.itemIds||[])};
+  characters.forEach(x=>{if(!sets["人物"].has(x.id)&&consistencyHasMention(text,x.name))consistencyPushSuggestion(ch,"人物",x)});
+  locations.forEach(x=>{if(!sets["地點"].has(x.id)&&consistencyHasMention(text,x.name))consistencyPushSuggestion(ch,"地點",x)});
+  factions.forEach(x=>{if(!sets["勢力"].has(x.id)&&consistencyHasMention(text,x.name))consistencyPushSuggestion(ch,"勢力",x)});
+  items.forEach(x=>{if(!sets["物品"].has(x.id)&&consistencyHasMention(text,x.name))consistencyPushSuggestion(ch,"物品",x)});
+}
+function consistencyCheckOrphans(ch){
+  const maps={"人物":[ch.characterIds||[],consistencyEntityMap(characters)],"事件":[ch.eventIds||[],consistencyEntityMap(timelineEvents)],"地點":[ch.locationIds||[],consistencyEntityMap(locations)],"勢力":[ch.factionIds||[],consistencyEntityMap(factions)],"物品":[ch.itemIds||[],consistencyEntityMap(items)]};
+  Object.entries(maps).forEach(([kind,[ids,map]])=>ids.forEach(id=>{if(id&&!map.has(id))consistencyResults.issues.push({type:"error",chapterId:ch.id,chapterNumber:ch.number,chapterTitle:ch.title,message:`本章仍連著一筆已不存在的${kind}資料。`,detail:`ID：${id}`})}));
+}
+function consistencyCheckChapterNumbers(){
+  const groups=new Map();chapters.forEach(ch=>{const n=Number(ch.number);if(!groups.has(n))groups.set(n,[]);groups.get(n).push(ch)});
+  groups.forEach((rows,n)=>{if(rows.length>1)consistencyResults.issues.push({type:"error",message:`章號重複：第 ${n} 章共有 ${rows.length} 筆。`,detail:rows.map(x=>x.title||"未命名").join("、")})});
+}
+function consistencyCheckHooks(){
+  const chapterMap=consistencyEntityMap(chapters);
+  plotHooks.forEach(h=>{
+    [["埋下章節",h.plantChapterId],["預計回收章節",h.targetChapterId],["實際回收章節",h.resolveChapterId]].forEach(([label,id])=>{if(id&&!chapterMap.has(id))consistencyResults.issues.push({type:"error",message:`伏筆「${h.name||"未命名"}」的${label}已不存在。`,detail:`ID：${id}`})});
+    if(h.status==="已回收"&&!h.resolveChapterId)consistencyResults.issues.push({type:"warning",message:`伏筆「${h.name||"未命名"}」標記為已回收，但沒有設定實際回收章節。`});
+    if(h.resolveChapterId&&h.status!=="已回收")consistencyResults.issues.push({type:"warning",message:`伏筆「${h.name||"未命名"}」已有實際回收章節，但狀態仍是「${h.status||"未設定"}」。`});
+    const plant=chapterMap.get(h.plantChapterId),resolve=chapterMap.get(h.resolveChapterId);
+    if(plant&&resolve&&Number(resolve.number)<Number(plant.number))consistencyResults.issues.push({type:"warning",message:`伏筆「${h.name||"未命名"}」的回收章節排在埋下章節之前。`,detail:`${consistencyChapterLabel(plant)} → ${consistencyChapterLabel(resolve)}`});
+  });
+}
+function consistencyCheckItems(){
+  const cm=consistencyEntityMap(characters),fm=consistencyEntityMap(factions),lm=consistencyEntityMap(locations);
+  items.forEach(it=>{
+    if(it.ownerCharacterId&&!cm.has(it.ownerCharacterId))consistencyResults.issues.push({type:"error",message:`物品「${it.name}」的目前持有人已不存在。`});
+    if(it.factionId&&!fm.has(it.factionId))consistencyResults.issues.push({type:"error",message:`物品「${it.name}」連結的勢力已不存在。`});
+    if(it.locationId&&!lm.has(it.locationId))consistencyResults.issues.push({type:"error",message:`物品「${it.name}」連結的所在地已不存在。`});
+  });
+}
+async function openConsistencyCenter(){showScreen("consistency");await runConsistencyCheck()}
+async function runConsistencyCheck(){
+  consistencyIssueList.innerHTML='<div class="workspace-mini-empty">正在檢查資料……</div>';consistencySuggestionList.innerHTML='<div class="workspace-mini-empty">正在分析章節關聯……</div>';
+  try{
+    const r=await Promise.allSettled([apiGet("getChapters",{novelId:currentNovel["ID"]}),apiGet("getCharacters",{novelId:currentNovel["ID"]}),apiGet("getFactions",{novelId:currentNovel["ID"]}),apiGet("getLocations",{novelId:currentNovel["ID"]}),apiGet("getItems",{novelId:currentNovel["ID"]}),loadTimelineFromCloud({allowMigration:false}),loadPlotHooksFromCloud()]);
+    if(r[0].status==="fulfilled")chapters=r[0].value||[];if(r[1].status==="fulfilled")characters=r[1].value||[];if(r[2].status==="fulfilled")factions=r[2].value||[];if(r[3].status==="fulfilled")locations=r[3].value||[];if(r[4].status==="fulfilled")items=r[4].value||[];
+    chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));consistencyResults={suggestions:[],issues:[]};
+    chapters.forEach(ch=>{consistencyScanMentions(ch);consistencyCheckOrphans(ch)});consistencyCheckChapterNumbers();consistencyCheckHooks();consistencyCheckItems();
+    if(!consistencyResults.issues.length)consistencyResults.issues.push({type:"ok",message:"目前沒有發現結構性設定衝突。"});renderConsistencyCenter();
+  }catch(e){console.error(e);consistencyIssueList.innerHTML=`<div class="workspace-mini-empty">檢查失敗：${escapeHtml(e.message||"未知錯誤")}</div>`}
+}
+function consistencyIcon(type){return type==="error"?"🔴":type==="warning"?"🟠":type==="suggestion"?"🔵":"🟢"}
+function consistencyFiltered(rows){const q=(consistencySearch?.value||"").trim().toLowerCase(),type=consistencyTypeFilter?.value||"";return rows.filter(x=>(!type||x.type===type)&&(!q||[x.message,x.detail,x.chapterTitle,x.entityName,x.kind].join(" ").toLowerCase().includes(q)))}
+function renderConsistencyCenter(){
+  const suggestions=consistencyFiltered(consistencyResults.suggestions),issues=consistencyFiltered(consistencyResults.issues),errors=consistencyResults.issues.filter(x=>x.type==="error").length,warnings=consistencyResults.issues.filter(x=>x.type==="warning").length;
+  consistencyStats.innerHTML=`<div><b>${errors}</b><small>需處理</small></div><div><b>${warnings}</b><small>注意</small></div><div><b>${consistencyResults.suggestions.length}</b><small>關聯建議</small></div><div><b>${chapters.length}</b><small>已檢查章節</small></div>`;
+  consistencyHomeStatus.textContent=errors?`${errors} 個需處理`:warnings?`${warnings} 個注意`:`${consistencyResults.suggestions.length} 個關聯建議`;
+  consistencySuggestionList.innerHTML=suggestions.length?suggestions.map(x=>`<article class="consistency-card suggestion"><div class="consistency-card-main"><span>🔵</span><div><b>${escapeHtml(x.message)}</b><small>${escapeHtml(consistencyChapterLabel({number:x.chapterNumber,title:x.chapterTitle}))}</small></div></div><button class="secondary small-btn" onclick="applyConsistencySuggestion('${safeAttr(x.chapterId)}','${safeAttr(x.kind)}','${safeAttr(x.entityId)}')">＋ 加入本章</button></article>`).join(""):'<div class="workspace-mini-empty">目前沒有漏掛的關聯建議。</div>';
+  consistencyIssueList.innerHTML=issues.length?issues.map(x=>`<article class="consistency-card ${x.type}"><div class="consistency-card-main"><span>${consistencyIcon(x.type)}</span><div><b>${escapeHtml(x.message)}</b>${x.chapterId?`<small>${escapeHtml(consistencyChapterLabel({number:x.chapterNumber,title:x.chapterTitle}))}</small>`:""}${x.detail?`<p>${escapeHtml(x.detail)}</p>`:""}</div></div></article>`).join(""):'<div class="workspace-mini-empty">目前篩選條件下沒有項目。</div>';
+  applyAllConsistencyBtn.disabled=!consistencyResults.suggestions.length;
+}
+async function applyConsistencySuggestion(chapterId,kind,entityId,silent=false){
+  const ch=chapters.find(x=>x.id===chapterId);if(!ch)return;const field={"人物":"characterIds","地點":"locationIds","勢力":"factionIds","物品":"itemIds"}[kind];if(!field)return;
+  const data={...ch,[field]:[...new Set([...(ch[field]||[]),entityId])]};
+  try{const saved=await apiPost("saveChapter",{novelId:currentNovel["ID"],chapterId:ch.id,data});const i=chapters.findIndex(x=>x.id===saved.id);if(i>=0)chapters[i]=saved;consistencyResults.suggestions=consistencyResults.suggestions.filter(x=>!(x.chapterId===chapterId&&x.kind===kind&&x.entityId===entityId));if(!silent){renderConsistencyCenter();showToast(`✅ 已加入${kind}關聯`)}}catch(e){if(!silent)showToast(e.message||"套用失敗");throw e}
+}
+async function applyAllConsistencySuggestions(){
+  const rows=[...consistencyResults.suggestions];if(!rows.length)return;applyAllConsistencyBtn.disabled=true;applyAllConsistencyBtn.textContent="☁️ 套用中…";
+  try{for(const x of rows)await applyConsistencySuggestion(x.chapterId,x.kind,x.entityId,true);renderConsistencyCenter();showToast(`✅ 已套用 ${rows.length} 筆關聯建議`)}catch(e){renderConsistencyCenter();showToast("部分建議套用失敗，請再檢查")}finally{applyAllConsistencyBtn.textContent="＋ 套用全部建議";applyAllConsistencyBtn.disabled=!consistencyResults.suggestions.length}
+}
+/* =========================================================
  * v2.0 Creative Workspace
  * 三欄整合：章節 / 正文 / 人物事件設定AI
  * =======================================================*/
@@ -3662,6 +3736,7 @@ function jumpToCharacter(id){
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.consistency.classList.contains("hidden")) return showScreen("novel");
   if (!screens.itemEditor.classList.contains("hidden")) return cancelItemEditor();
   if (!screens.itemSection.classList.contains("hidden")) return openItemDetail(currentItem.id);
   if (!screens.itemDetail.classList.contains("hidden")) return showScreen("items");
@@ -3739,3 +3814,6 @@ function safeAttr(value) { return String(value ?? "").replace(/['"\\]/g,""); }
     }, { passive: false });
   }
 })();
+
+if(document.getElementById("consistencySearch"))document.getElementById("consistencySearch").addEventListener("input",renderConsistencyCenter);
+if(document.getElementById("consistencyTypeFilter"))document.getElementById("consistencyTypeFilter").addEventListener("change",renderConsistencyCenter);

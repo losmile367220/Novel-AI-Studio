@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v29-smart-sidebar">
+  <link rel="stylesheet" href="style.css?v=20260808-v30-consistency">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -68,6 +68,7 @@
       
       <button class="module-card active" type="button" onclick="openTimeline()"><span>📜</span><b>劇情時間線</b><small>事件 × 人物 × 勢力</small></button>
       <button class="module-card active" type="button" onclick="openRelationshipGraph()"><span>🕸️</span><b>關係圖譜</b><small>人物 × 勢力</small></button>
+      <button class="module-card active consistency-module-card" type="button" onclick="openConsistencyCenter()"><span>🩺</span><b>一致性檢查</b><small id="consistencyHomeStatus">設定健檢 × 關聯建議</small></button>
       <button class="module-card active" type="button" onclick="openAIWriter()"><span>🤖</span><b>AI 助手</b><small>零 API Token</small></button>
     </div>
   </section>
@@ -509,6 +510,28 @@
       <button class="active" type="button" onclick="toggleWorkspaceMobilePanel('editor')">✍️<span>正文</span></button>
       <button type="button" onclick="toggleWorkspaceMobilePanel('inspector')">🧠<span>資料</span></button>
     </div>
+  </section>
+
+  <section id="consistencyView" class="screen hidden">
+    <article class="panel consistency-hero">
+      <div><div class="consistency-kicker">STORY QA</div><h2>🩺 一致性檢查中心</h2>
+      <p class="muted">只根據已建立資料與章節關聯檢查，不亂猜劇情；也會找出正文已提到、但尚未掛進本章的設定。</p></div>
+      <button class="primary small-btn" type="button" onclick="runConsistencyCheck()">↻ 重新檢查</button>
+    </article>
+    <div id="consistencyStats" class="timeline-stats consistency-stats"></div>
+    <div class="consistency-toolbar">
+      <div class="search-wrap"><span>🔍</span><input id="consistencySearch" type="search" placeholder="搜尋章節、人物、地點、物品、問題"></div>
+      <select id="consistencyTypeFilter"><option value="">全部類型</option><option value="error">🔴 需處理</option><option value="warning">🟠 注意</option><option value="suggestion">🔵 關聯建議</option><option value="ok">🟢 正常</option></select>
+    </div>
+    <section class="panel consistency-section">
+      <div class="chapter-section-heading"><div><b>🧠 自動關聯建議</b><small>正文出現已建立名稱，但本章尚未勾選時才會建議</small></div>
+      <button id="applyAllConsistencyBtn" class="secondary small-btn" type="button" onclick="applyAllConsistencySuggestions()">＋ 套用全部建議</button></div>
+      <div id="consistencySuggestionList" class="consistency-list"></div>
+    </section>
+    <section class="panel consistency-section">
+      <div class="chapter-section-heading"><div><b>🛡️ 設定健檢</b><small>孤兒關聯、章號重複、伏筆狀態與章節位置</small></div></div>
+      <div id="consistencyIssueList" class="consistency-list"></div>
+    </section>
   </section>
 
   <section id="aiWriterView" class="screen hidden">
@@ -1095,6 +1118,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v29-smart-sidebar"></script>
+<script src="app.js?v=20260808-v30-consistency"></script>
 </body>
 </html>
