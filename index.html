@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v23-history">
+  <link rel="stylesheet" href="style.css?v=20260808-v24">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -61,7 +61,7 @@
       <button class="module-card active" type="button" onclick="openFactions()"><span>🏯</span><b>勢力</b><small id="factionCount">0 個</small></button>
       <button class="module-card disabled" type="button"><span>📍</span><b>地點</b><small>即將開放</small></button>
       <button class="module-card disabled" type="button"><span>🎒</span><b>物品</b><small>即將開放</small></button>
-      <button class="module-card disabled" type="button"><span>🧩</span><b>伏筆</b><small>即將開放</small></button>
+      <button class="module-card active" type="button" onclick="openPlotHooks()"><span>🧩</span><b>伏筆／線索</b><small>埋下 × 發展 × 回收</small></button>
       <button class="module-card disabled" type="button"><span>📖</span><b>章節</b><small>即將開放</small></button>
       <button class="module-card active workspace-module-card" type="button" onclick="openCreativeWorkspace()"><span>📝</span><b>創作工作台</b><small>章節 × 設定 × AI</small></button>
       <button class="module-card active" type="button" onclick="openChapters()"><span>📖</span><b>章節管理</b><small>正文 × 自動儲存</small></button>
@@ -306,6 +306,7 @@
           <button class="active" type="button" data-workspace-tab="characters" onclick="switchWorkspaceTab('characters')">人物</button>
           <button type="button" data-workspace-tab="events" onclick="switchWorkspaceTab('events')">事件</button>
           <button type="button" data-workspace-tab="reference" onclick="switchWorkspaceTab('reference')">速查</button>
+          <button type="button" data-workspace-tab="hooks" onclick="switchWorkspaceTab('hooks')">伏筆</button>
           <button type="button" data-workspace-tab="ai" onclick="switchWorkspaceTab('ai')">AI</button>
         </div>
 
@@ -332,6 +333,11 @@
           </div>
           <input id="workspaceReferenceSearch" type="search" placeholder="搜尋人物、勢力…" />
           <div id="workspaceReferenceList" class="workspace-reference-list"></div>
+        </div>
+
+        <div id="workspaceTabHooks" class="workspace-tab-panel hidden">
+          <div class="workspace-inspector-head"><b>🧩 本章相關伏筆</b><small>埋下、發展與回收提醒</small></div>
+          <div id="workspacePlotHooks" class="workspace-plot-hooks"></div>
         </div>
 
         <div id="workspaceTabAi" class="workspace-tab-panel hidden">
@@ -425,6 +431,20 @@
       </div>
       <textarea id="aiPromptOutput" class="ai-prompt-output" placeholder="選擇任務後，按「產生提示詞」……"></textarea>
     </article>
+  </section>
+
+  <section id="plotHooksView" class="screen hidden">
+    <div class="chapter-hero">
+      <div><span class="eyebrow">PLOT MEMORY</span><h2>🧩 伏筆／線索管理中心</h2><p>把埋下、發展與回收串起來，讓長篇故事不再掉坑。</p></div>
+      <div class="chapter-hero-actions"><button class="secondary small-btn" type="button" onclick="refreshPlotHooks()">↻ 同步</button><button class="primary small-btn" type="button" onclick="openPlotHookEditor()">＋ 新增伏筆</button></div>
+    </div>
+    <div id="plotHookStats" class="plot-hook-stats"></div>
+    <div class="plot-hook-toolbar">
+      <input id="plotHookSearch" type="search" placeholder="搜尋伏筆、真相、人物、勢力…" />
+      <select id="plotHookStatusFilter"><option value="">全部狀態</option><option>未埋下</option><option>已埋下</option><option>發展中</option><option>已回收</option><option>棄用</option></select>
+      <select id="plotHookPriorityFilter"><option value="">全部重要度</option><option>核心</option><option>重要</option><option>一般</option></select>
+    </div>
+    <div id="plotHookList" class="plot-hook-list"></div>
   </section>
 
   <section id="chaptersView" class="screen hidden">
@@ -741,6 +761,27 @@
   </section>
 </main>
 
+<div id="plotHookModal" class="plot-hook-modal hidden" role="dialog" aria-modal="true">
+  <div class="plot-hook-backdrop" onclick="closePlotHookEditor()"></div>
+  <section class="plot-hook-panel">
+    <div class="plot-hook-modal-head"><div><b id="plotHookModalTitle">🧩 新增伏筆／線索</b><small>設定埋下、發展與回收路線</small></div><button type="button" onclick="closePlotHookEditor()">✕</button></div>
+    <div class="plot-hook-form"><div class="plot-hook-form-grid">
+      <label class="span-2">伏筆名稱<input id="plotHookName" /></label>
+      <label>類型<select id="plotHookType"><option>伏筆</option><option>線索</option><option>秘密</option><option>謎團</option><option>預言</option><option>物件</option><option>身世</option><option>感情</option><option>其他</option></select></label>
+      <label>重要程度<select id="plotHookPriority"><option>核心</option><option selected>重要</option><option>一般</option></select></label>
+      <label>狀態<select id="plotHookStatus"><option>未埋下</option><option>已埋下</option><option>發展中</option><option>已回收</option><option>棄用</option></select></label>
+      <label>埋下章節<select id="plotHookPlantChapter"></select></label><label>預計回收章節<select id="plotHookTargetChapter"></select></label><label>實際回收章節<select id="plotHookResolveChapter"></select></label>
+      <label class="span-2">伏筆內容<textarea id="plotHookDescription" rows="4"></textarea></label>
+      <label class="span-2">真相／最終揭露<textarea id="plotHookTruth" rows="4" placeholder="AI 不應提前揭露"></textarea></label>
+      <fieldset class="plot-hook-link-box"><legend>👤 涉及人物</legend><div id="plotHookCharacterChecks" class="plot-hook-checks"></div></fieldset>
+      <fieldset class="plot-hook-link-box"><legend>🏯 涉及勢力</legend><div id="plotHookFactionChecks" class="plot-hook-checks"></div></fieldset>
+      <fieldset class="plot-hook-link-box span-2"><legend>📜 關聯事件</legend><div id="plotHookEventChecks" class="plot-hook-checks wide"></div></fieldset>
+      <label class="span-2">作者備註<textarea id="plotHookNotes" rows="3"></textarea></label>
+    </div></div>
+    <div class="plot-hook-modal-actions"><button id="plotHookDeleteBtn" class="danger-lite hidden" onclick="deleteCurrentPlotHook()">🗑 刪除</button><div></div><button class="secondary" onclick="closePlotHookEditor()">取消</button><button class="primary" onclick="saveCurrentPlotHook()">💾 儲存伏筆</button></div>
+  </section>
+</div>
+
 <div id="chapterHistoryModal" class="chapter-history-modal hidden" role="dialog" aria-modal="true">
   <div class="chapter-history-backdrop" onclick="closeChapterHistory()"></div>
   <section class="chapter-history-panel">
@@ -834,6 +875,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v23-history"></script>
+<script src="app.js?v=20260808-v24"></script>
 </body>
 </html>

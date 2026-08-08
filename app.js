@@ -18,6 +18,8 @@ let currentFactionSection = "basic";
 let factionEditorReturn = "factions";
 let relations = [];
 let relationReturn = "detail";
+let currentPlotHook=null;
+let plotHooks=[];
 let selectedChapterSnapshotId = "";
 let chapterSnapshots = [];
 let globalSearchFilter = "";
@@ -60,7 +62,8 @@ const screens = {
   chapters: document.getElementById("chaptersView"),
   chapterEditor: document.getElementById("chapterEditorView"),
   aiWriter: document.getElementById("aiWriterView"),
-  creativeWorkspace: document.getElementById("creativeWorkspaceView")
+  creativeWorkspace: document.getElementById("creativeWorkspaceView"),
+  plotHooks: document.getElementById("plotHooksView")
 };
 
 const sectionGroups = {
@@ -206,7 +209,8 @@ function showScreen(name) {
     chapters:["📖 章節管理",currentNovel?.["書名"] || ""],
     chapterEditor:["✍️ 章節編輯器",currentNovel?.["書名"] || ""],
     aiWriter:["🤖 AI 寫作助手",currentNovel?.["書名"] || ""],
-    creativeWorkspace:["📝 創作工作台",currentNovel?.["書名"] || ""]
+    creativeWorkspace:["📝 創作工作台",currentNovel?.["書名"] || ""],
+    plotHooks:["🧩 伏筆／線索",currentNovel?.["書名"] || ""]
   };
   document.getElementById("pageTitle").textContent = titles[name][0];
   document.getElementById("pageSubtitle").textContent = titles[name][1];
@@ -539,6 +543,24 @@ document.getElementById("roleFilters").addEventListener("click", event => {
   button.classList.add("active"); renderCharacters();
 });
 
+
+/* v2.4 Plot Hooks */
+const PLOT_HOOK_STATUS={"未埋下":"⚪","已埋下":"🟡","發展中":"🟠","已回收":"🟢","棄用":"⚫"};
+async function loadPlotHooksFromCloud(){if(!currentNovel?.["ID"])return[];try{plotHooks=await apiGet("getPlotHooks",{novelId:currentNovel["ID"]})||[]}catch(e){console.warn(e);plotHooks=[]}return plotHooks}
+async function openPlotHooks(){showScreen("plotHooks");await loadPlotHooksFromCloud();renderPlotHooks()}
+async function refreshPlotHooks(){await loadPlotHooksFromCloud();renderPlotHooks();showToast("✅ 伏筆資料已同步")}
+function hookChapter(id){const c=chapters.find(x=>x.id===id);return c?`第 ${c.number} 章 ${c.title||""}`:"未指定"}
+function hookNames(ids,list){const s=new Set(ids||[]);return list.filter(x=>s.has(x.id)).map(x=>x.name||x.title).filter(Boolean)}
+function renderPlotHooks(){const q=(plotHookSearch.value||"").trim().toLowerCase(),s=plotHookStatusFilter.value,p=plotHookPriorityFilter.value,n=x=>plotHooks.filter(h=>h.status===x).length;plotHookStats.innerHTML=`<div><b>${plotHooks.length}</b><small>全部</small></div><div><b>${n("未埋下")}</b><small>⚪ 未埋下</small></div><div><b>${n("已埋下")}</b><small>🟡 已埋下</small></div><div><b>${n("發展中")}</b><small>🟠 發展中</small></div><div><b>${n("已回收")}</b><small>🟢 已回收</small></div>`;const rows=plotHooks.filter(h=>(!s||h.status===s)&&(!p||h.priority===p)&&(!q||[h.name,h.type,h.description,h.truth,h.notes,...hookNames(h.characterIds,characters),...hookNames(h.factionIds,factions)].join(" ").toLowerCase().includes(q)));plotHookList.innerHTML=rows.length?rows.map(h=>`<article class="plot-hook-card" onclick="openPlotHookEditor('${safeAttr(h.id)}')"><div class="plot-hook-card-top"><span>${PLOT_HOOK_STATUS[h.status]||"⚪"} ${escapeHtml(h.status)}</span><span>${escapeHtml(h.priority)}</span></div><h3>${escapeHtml(h.name)}</h3><small>${escapeHtml(h.type)}</small><p>${escapeHtml(h.description||"尚未填寫伏筆內容")}</p><div class="plot-hook-route">🌱 ${escapeHtml(hookChapter(h.plantChapterId))} → 🎯 ${escapeHtml(hookChapter(h.targetChapterId))}${h.resolveChapterId?` → ✅ ${escapeHtml(hookChapter(h.resolveChapterId))}`:""}</div></article>`).join(""):'<div class="plot-hook-empty">目前沒有符合的伏筆／線索。</div>'}
+function fillHookChapterSelect(id,val){const e=document.getElementById(id);e.innerHTML='<option value="">未指定</option>'+sortedChapters().map(c=>`<option value="${safeAttr(c.id)}">第 ${c.number} 章｜${escapeHtml(c.title||"未命名")}</option>`).join("");e.value=val||""}
+function openPlotHookEditor(id=""){currentPlotHook=id?plotHooks.find(x=>x.id===id)||null:null;const h=currentPlotHook||{name:"",type:"伏筆",priority:"重要",status:"未埋下",characterIds:[],factionIds:[],eventIds:[]};plotHookModalTitle.textContent=currentPlotHook?"🧩 編輯伏筆／線索":"🧩 新增伏筆／線索";plotHookDeleteBtn.classList.toggle("hidden",!currentPlotHook);plotHookName.value=h.name||"";plotHookType.value=h.type||"伏筆";plotHookPriority.value=h.priority||"重要";plotHookStatus.value=h.status||"未埋下";plotHookDescription.value=h.description||"";plotHookTruth.value=h.truth||"";plotHookNotes.value=h.notes||"";fillHookChapterSelect("plotHookPlantChapter",h.plantChapterId);fillHookChapterSelect("plotHookTargetChapter",h.targetChapterId);fillHookChapterSelect("plotHookResolveChapter",h.resolveChapterId);const cs=new Set(h.characterIds||[]),fs=new Set(h.factionIds||[]),es=new Set(h.eventIds||[]);plotHookCharacterChecks.innerHTML=characters.map(c=>`<label><input type="checkbox" value="${safeAttr(c.id)}" ${cs.has(c.id)?"checked":""}>${escapeHtml(c.name)}</label>`).join("")||"<small>尚無人物</small>";plotHookFactionChecks.innerHTML=factions.map(f=>`<label><input type="checkbox" value="${safeAttr(f.id)}" ${fs.has(f.id)?"checked":""}>${escapeHtml(f.name)}</label>`).join("")||"<small>尚無勢力</small>";plotHookEventChecks.innerHTML=timelineEvents.map(e=>`<label><input type="checkbox" value="${safeAttr(e.id)}" ${es.has(e.id)?"checked":""}>${escapeHtml(e.title)}</label>`).join("")||"<small>尚無事件</small>";plotHookModal.classList.remove("hidden")}
+function closePlotHookEditor(){plotHookModal.classList.add("hidden");currentPlotHook=null}
+function hookChecked(s){return[...document.querySelectorAll(s+" input:checked")].map(x=>x.value)}
+async function saveCurrentPlotHook(){const name=plotHookName.value.trim();if(!name)return showToast("請輸入伏筆名稱");const data={name,type:plotHookType.value,priority:plotHookPriority.value,status:plotHookStatus.value,plantChapterId:plotHookPlantChapter.value,targetChapterId:plotHookTargetChapter.value,resolveChapterId:plotHookResolveChapter.value,description:plotHookDescription.value.trim(),truth:plotHookTruth.value.trim(),notes:plotHookNotes.value.trim(),characterIds:hookChecked("#plotHookCharacterChecks"),factionIds:hookChecked("#plotHookFactionChecks"),eventIds:hookChecked("#plotHookEventChecks")};try{const saved=await apiPost("savePlotHook",{novelId:currentNovel["ID"],plotHookId:currentPlotHook?.id||"",data});const i=plotHooks.findIndex(x=>x.id===saved.id);if(i>=0)plotHooks[i]=saved;else plotHooks.push(saved);closePlotHookEditor();renderPlotHooks();renderWorkspacePlotHooks();showToast("✅ 伏筆已儲存")}catch(e){showToast(e.message||"儲存失敗")}}
+async function deleteCurrentPlotHook(){if(!currentPlotHook||!confirm(`確定刪除「${currentPlotHook.name}」？`))return;try{await apiPost("deletePlotHook",{novelId:currentNovel["ID"],plotHookId:currentPlotHook.id});plotHooks=plotHooks.filter(x=>x.id!==currentPlotHook.id);closePlotHookEditor();renderPlotHooks();renderWorkspacePlotHooks();showToast("✅ 伏筆已刪除")}catch(e){showToast(e.message||"刪除失敗")}}
+function renderWorkspacePlotHooks(){const box=document.getElementById("workspacePlotHooks");if(!box||!workspaceChapter)return;const cid=workspaceChapter.id,rel=plotHooks.filter(h=>h.plantChapterId===cid||h.targetChapterId===cid||h.resolveChapterId===cid||(h.characterIds||[]).some(id=>(workspaceChapter.characterIds||[]).includes(id))||(h.eventIds||[]).some(id=>(workspaceChapter.eventIds||[]).includes(id)));box.innerHTML=rel.length?rel.map(h=>{let r="相關";if(h.plantChapterId===cid)r="🌱 本章埋下";if(h.targetChapterId===cid)r="🎯 預計本章回收";if(h.resolveChapterId===cid)r="✅ 本章已回收";return`<button class="workspace-hook-card" onclick="openPlotHookEditor('${safeAttr(h.id)}')"><span>${r}</span><b>${PLOT_HOOK_STATUS[h.status]||"⚪"} ${escapeHtml(h.name)}</b><small>${escapeHtml(h.status)} · ${escapeHtml(h.priority)}</small><p>${escapeHtml(h.description||"")}</p></button>`}).join(""):'<div class="workspace-mini-empty">這一章目前沒有關聯伏筆。</div>'}
+function buildAIPlotHookContext(){const a=plotHooks.filter(h=>!["已回收","棄用"].includes(h.status));return a.length?a.map(h=>`- ${h.name}｜${h.status}｜${h.priority}\n  表面線索：${h.description||"未填"}\n  真相（不可提前揭露）：${h.truth||"未填"}\n  埋下：${hookChapter(h.plantChapterId)}\n  預計回收：${hookChapter(h.targetChapterId)}`).join("\n"):"目前沒有未回收伏筆。"}
+plotHookSearch.addEventListener("input",renderPlotHooks);plotHookStatusFilter.addEventListener("change",renderPlotHooks);plotHookPriorityFilter.addEventListener("change",renderPlotHooks);
 
 /* =========================================================
  * v2.3 Chapter History
@@ -1205,7 +1227,8 @@ async function openCreativeWorkspace(){
   try{
     const results=await Promise.allSettled([
       apiGet("getChapters",{novelId:currentNovel["ID"]}),
-      loadTimelineFromCloud({allowMigration:false})
+      loadTimelineFromCloud({allowMigration:false}),
+      loadPlotHooksFromCloud()
     ]);
     if(results[0].status==="fulfilled") chapters=results[0].value||[];
     chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
@@ -1268,6 +1291,7 @@ function fillWorkspaceEditor(ch){
     <label class="workspace-check"><input type="checkbox" value="${safeAttr(e.id)}" ${es.has(e.id)?"checked":""}>
     <span><b>${timelineTypeEmoji(e.type)} ${escapeHtml(e.title||"未命名事件")}</b><small>${escapeHtml(e.storyTime||e.status||"事件")}</small></span></label>`).join(""):'<div class="workspace-mini-empty">尚未建立事件</div>';
   updateWorkspaceStats();
+  renderWorkspacePlotHooks();
   setWorkspaceSaveState("☁️ 已同步");
 }
 
@@ -1314,7 +1338,7 @@ async function saveWorkspaceChapter(showMessage=false){
 }
 
 function switchWorkspaceTab(tab){
-  ["characters","events","reference","ai"].forEach(name=>{
+  ["characters","events","reference","hooks","ai"].forEach(name=>{
     document.getElementById("workspaceTab"+name[0].toUpperCase()+name.slice(1)).classList.toggle("hidden",name!==tab);
   });
   document.querySelectorAll("[data-workspace-tab]").forEach(b=>b.classList.toggle("active",b.dataset.workspaceTab===tab));
@@ -1362,6 +1386,9 @@ ${buildAIFactionContext()}
 
 【劇情時間線】
 ${buildAITimelineContext()}
+
+【未回收伏筆／線索】
+${buildAIPlotHookContext()}
 
 【目前章節】
 第 ${document.getElementById("workspaceChapterNumber").value} 章｜${document.getElementById("workspaceChapterTitle").value||"未命名"}
