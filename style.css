@@ -68,3 +68,177 @@ button:disabled{
   .form-grid-2{grid-template-columns:1fr 1fr}
   .character-link-card .relation-main{grid-template-columns:38px minmax(0,1fr) 16px}
 }
+
+/* =========================================================
+   v1.5.1 Mobile UI Fix
+   只調整手機版排版，不改任何功能
+   ========================================================= */
+
+@media (max-width: 600px){
+
+  /* 整體內容區稍微放寬，減少左右空白 */
+  main{
+    padding-left:10px;
+    padding-right:10px;
+  }
+
+  /* 人物首頁 Hero */
+  .compact-hero{
+    gap:10px;
+    padding:14px;
+  }
+  .compact-hero .avatar{
+    width:58px;
+    height:58px;
+    border-radius:17px;
+    font-size:28px;
+  }
+  .hero-copy{
+    min-width:0;
+    overflow:hidden;
+  }
+  .hero-copy h2{
+    font-size:22px;
+    line-height:1.2;
+  }
+  .hero-copy>p{
+    margin:3px 0;
+    font-size:12px;
+    line-height:1.4;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .hero-meta{
+    gap:6px;
+    margin-top:5px;
+  }
+
+  /* 人物詳細資料卡：縮小 icon 欄，讓文字往左回來 */
+  #characterDetailView .settings-list{
+    gap:8px;
+    margin-top:10px;
+  }
+  #characterDetailView .settings-row{
+    grid-template-columns:34px minmax(0,1fr) 14px;
+    gap:7px;
+    padding:11px 12px;
+    border-radius:16px;
+    min-width:0;
+    overflow:hidden;
+  }
+  #characterDetailView .settings-icon{
+    width:34px;
+    height:34px;
+    border-radius:11px;
+    font-size:18px;
+  }
+  #characterDetailView .settings-copy{
+    min-width:0;
+    overflow:hidden;
+  }
+  #characterDetailView .settings-title{
+    font-size:15px;
+    line-height:1.25;
+    margin:0;
+  }
+  #characterDetailView .settings-preview{
+    margin-top:3px;
+    font-size:11px;
+    line-height:1.42;
+    white-space:normal;
+    overflow:hidden;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    overflow-wrap:anywhere;
+    word-break:break-word;
+  }
+  #characterDetailView .settings-arrow{
+    font-size:16px;
+    justify-self:end;
+  }
+
+  /* 關聯卡與人物關係卡：跟上方卡片統一 */
+  #characterDetailView .relation-block{
+    margin-top:10px;
+    padding:12px;
+    border-radius:17px;
+  }
+  #characterDetailView .relation-head{
+    gap:8px;
+    margin-bottom:9px;
+  }
+  #characterDetailView .relation-head b{
+    font-size:14px;
+    line-height:1.25;
+  }
+  #characterDetailView .relation-head small{
+    font-size:10px;
+    line-height:1.35;
+    margin-top:2px;
+  }
+  #characterDetailView .relation-add{
+    flex:0 0 auto;
+    padding:8px 10px;
+    font-size:12px;
+    border-radius:11px;
+  }
+  #characterDetailView .relation-empty{
+    padding:12px 10px;
+    font-size:11px;
+    border-radius:12px;
+  }
+
+  /* 關聯項目本身 */
+  #characterDetailView .relation-main{
+    grid-template-columns:34px minmax(0,1fr) 14px;
+    gap:7px;
+    padding:9px 10px;
+  }
+  #characterDetailView .relation-emoji{
+    width:34px;
+    height:34px;
+    border-radius:11px;
+    font-size:18px;
+  }
+  #characterDetailView .relation-copy{
+    min-width:0;
+    overflow:hidden;
+  }
+  #characterDetailView .relation-copy b{
+    font-size:13px;
+  }
+  #characterDetailView .relation-copy small{
+    font-size:10px;
+    line-height:1.35;
+  }
+
+  /* 底部按鈕不要被內容擠得太寬鬆 */
+  #characterDetailView .bottom-actions{
+    margin-top:12px;
+  }
+
+  /* 編輯人物關係表單在窄螢幕改成單欄，閱讀較舒服 */
+  #characterLinkEditorView .form-grid-2{
+    grid-template-columns:1fr;
+    gap:0;
+  }
+}
+
+/* 320px 級小手機再收一點 */
+@media (max-width: 380px){
+  #characterDetailView .settings-row{
+    grid-template-columns:32px minmax(0,1fr) 12px;
+    padding:10px;
+  }
+  #characterDetailView .settings-icon{
+    width:32px;
+    height:32px;
+    font-size:17px;
+  }
+  #characterDetailView .settings-title{
+    font-size:14px;
+  }
+}
+
