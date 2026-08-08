@@ -18,6 +18,8 @@ let currentFactionSection = "basic";
 let factionEditorReturn = "factions";
 let relations = [];
 let relationReturn = "detail";
+let characterLinks = [];
+let editingCharacterLinkId = "";
 
 const screens = {
   login: document.getElementById("loginView"),
@@ -34,7 +36,8 @@ const screens = {
   factionDetail: document.getElementById("factionDetailView"),
   factionSection: document.getElementById("factionSectionView"),
   factionEditor: document.getElementById("factionEditorView"),
-  relationEditor: document.getElementById("relationEditorView")
+  relationEditor: document.getElementById("relationEditorView"),
+  characterLinkEditor: document.getElementById("characterLinkEditorView")
 };
 
 const sectionGroups = {
@@ -172,7 +175,8 @@ function showScreen(name) {
     factionDetail:[currentFaction ? `${factionEmoji(currentFaction.type)} ${currentFaction.name}` : "🏯 勢力",currentNovel?.["書名"] || ""],
     factionSection:[factionSectionGroups[currentFactionSection]?.title || "勢力資料",currentFaction?.name || ""],
     factionEditor:[document.getElementById("factionId")?.value ? "✏️ 編輯勢力" : "＋ 新增勢力",currentNovel?.["書名"] || ""],
-    relationEditor:["🔗 關聯系統",currentNovel?.["書名"] || ""]
+    relationEditor:["🔗 關聯系統",currentNovel?.["書名"] || ""],
+    characterLinkEditor:["👥 人物關係",currentNovel?.["書名"] || ""]
   };
   document.getElementById("pageTitle").textContent = titles[name][0];
   document.getElementById("pageSubtitle").textContent = titles[name][1];
@@ -203,6 +207,7 @@ async function openNovel(novelId) {
   } catch (e) { document.getElementById("characterCount").textContent = "讀取失敗"; }
   try { factions = await apiGet("getFactions", {novelId:currentNovel["ID"]}); document.getElementById("factionCount").textContent = `${factions.length} 個`; } catch(e) { document.getElementById("factionCount").textContent = "讀取失敗"; }
   try { relations = await apiGet("getRelations", {novelId:currentNovel["ID"]}) || []; } catch(e) { console.warn("關聯資料讀取失敗", e); relations = []; }
+  try { characterLinks = await apiGet("getCharacterRelations", {novelId:currentNovel["ID"]}) || []; } catch(e) { console.warn("人物關係讀取失敗", e); characterLinks = []; }
 }
 
 async function openCharacters() {
@@ -246,6 +251,7 @@ function openCharacterDetail(characterId) {
     return `<button class="settings-row" type="button" onclick="openCharacterSection('${key}')"><span class="settings-icon">${group.icon}</span><span><span class="settings-title">${group.title.replace(/^..\s/,"")}</span><span class="settings-preview">${escapeHtml(preview)}</span></span><span class="settings-arrow">›</span></button>`;
   }).join("");
   renderCharacterRelations();
+  renderCharacterLinks();
   showScreen("detail");
 }
 
@@ -505,6 +511,191 @@ document.getElementById("roleFilters").addEventListener("click", event => {
 
 
 /* =========================================================
+ * v1.5 Character Relations — 人物 × 人物關係網
+ * 單一來源：character-relations.json
+ * =======================================================*/
+function characterLinkTypeEmoji(type){
+  return ({愛情:"❤️",親屬:"🩸",朋友:"🤝",主從:"👑",師徒:"📚",盟友:"🛡️",敵對:"⚔️",競爭:"🔥",利用:"🎭",其他:"🔗"})[type] || "🔗";
+}
+
+function clampRelationScore(value){
+  const n = Number(value);
+  if(!Number.isFinite(n)) return 50;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function getCharacterLinkView(link, characterId){
+  if(link.sourceCharacterId === characterId){
+    return {
+      otherId: link.targetCharacterId,
+      label: link.sourceLabel || link.relationType || "關係",
+      direction: link.direction === "oneway" ? "→" : "↔"
+    };
+  }
+  if(link.direction !== "oneway" && link.targetCharacterId === characterId){
+    return {
+      otherId: link.sourceCharacterId,
+      label: link.targetLabel || link.sourceLabel || link.relationType || "關係",
+      direction: "↔"
+    };
+  }
+  return null;
+}
+
+function renderCharacterLinks(){
+  const box = document.getElementById("characterLinkList");
+  if(!box || !currentCharacter) return;
+
+  const rows = characterLinks
+    .map(link => ({link, view:getCharacterLinkView(link, currentCharacter.id)}))
+    .filter(x => x.view);
+
+  box.innerHTML = rows.length ? rows.map(({link,view}) => {
+    const other = characterById(view.otherId);
+    const secret = link.visibility === "秘密" ? " · 🔒 秘密" : (link.visibility ? ` · ${link.visibility}` : "");
+    const scores = `親密 ${clampRelationScore(link.intimacy)} · 信任 ${clampRelationScore(link.trust)}`;
+    return `<article class="relation-card character-link-card">
+      <button class="relation-main" type="button" onclick="jumpToCharacter('${safeAttr(view.otherId)}')">
+        <span class="relation-emoji">${characterLinkTypeEmoji(link.relationType)}</span>
+        <span class="relation-copy">
+          <b>${escapeHtml(other?.name || "已刪除的人物")} <span class="link-direction">${view.direction}</span></b>
+          <small>${escapeHtml(view.label)}${escapeHtml(secret)}</small>
+          <small>${escapeHtml(scores)}</small>
+        </span>
+        <span class="character-arrow">›</span>
+      </button>
+      <div class="relation-card-actions">
+        <button class="relation-edit" type="button" onclick="event.stopPropagation();editCharacterLink('${safeAttr(link.id)}')">編輯</button>
+        <button class="relation-delete" type="button" onclick="event.stopPropagation();deleteCharacterLink('${safeAttr(link.id)}')">移除</button>
+      </div>
+    </article>`;
+  }).join("") : '<div class="relation-empty">尚未建立人物關係。</div>';
+}
+
+async function ensureCharacterLinkSources(){
+  if(!characters.length){
+    characters = await apiGet("getCharacters",{novelId:currentNovel["ID"]}) || [];
+  }
+}
+
+async function openCharacterLinkEditor(){
+  if(!currentCharacter) return showToast("請先選擇人物");
+  try{
+    await ensureCharacterLinkSources();
+    editingCharacterLinkId = "";
+    fillCharacterLinkEditor({});
+    showScreen("characterLinkEditor");
+  }catch(e){ showToast(e.message || "讀取人物資料失敗"); }
+}
+
+function fillCharacterLinkEditor(link){
+  const sourceId = link.sourceCharacterId || currentCharacter?.id || "";
+  const source = characterById(sourceId);
+  characterLinkSourceId.innerHTML = source
+    ? `<option value="${safeAttr(source.id)}">${escapeHtml(source.name || "未命名人物")}</option>`
+    : "";
+
+  const candidates = characters.filter(c => c.id !== sourceId);
+  characterLinkTargetId.innerHTML = candidates.length
+    ? candidates.map(c => `<option value="${safeAttr(c.id)}" ${c.id===link.targetCharacterId?"selected":""}>${escapeHtml(c.name || "未命名人物")}｜${escapeHtml(c.role || "未設定")}</option>`).join("")
+    : '<option value="">尚無其他人物</option>';
+
+  characterLinkType.value = link.relationType || "愛情";
+  characterLinkSourceLabel.value = link.sourceLabel || "";
+  characterLinkTargetLabel.value = link.targetLabel || "";
+  characterLinkDirection.value = link.direction || "bidirectional";
+  characterLinkVisibility.value = link.visibility || "公開";
+  characterLinkIntimacy.value = clampRelationScore(link.intimacy ?? 50);
+  characterLinkTrust.value = clampRelationScore(link.trust ?? 50);
+  characterLinkNotes.value = link.notes || "";
+}
+
+function cancelCharacterLinkEditor(){
+  editingCharacterLinkId = "";
+  if(currentCharacter) return openCharacterDetail(currentCharacter.id);
+  showScreen("characters");
+}
+
+function editCharacterLink(id){
+  const link = characterLinks.find(x => x.id === id);
+  if(!link) return showToast("找不到這筆人物關係");
+
+  // 若從目標人物進入，轉成目前人物視角編輯，避免操作混亂
+  let viewLink = {...link};
+  if(currentCharacter && link.targetCharacterId === currentCharacter.id && link.direction !== "oneway"){
+    viewLink = {
+      ...link,
+      sourceCharacterId: link.targetCharacterId,
+      targetCharacterId: link.sourceCharacterId,
+      sourceLabel: link.targetLabel,
+      targetLabel: link.sourceLabel
+    };
+  }
+  editingCharacterLinkId = id;
+  fillCharacterLinkEditor(viewLink);
+  showScreen("characterLinkEditor");
+}
+
+async function saveCharacterLinkEditor(){
+  const sourceCharacterId = characterLinkSourceId.value;
+  const targetCharacterId = characterLinkTargetId.value;
+  if(!sourceCharacterId || !targetCharacterId) return showToast("請選擇關係對象");
+  if(sourceCharacterId === targetCharacterId) return showToast("不能把人物和自己建立關係");
+
+  const data = {
+    sourceCharacterId,
+    targetCharacterId,
+    relationType:characterLinkType.value,
+    sourceLabel:characterLinkSourceLabel.value.trim(),
+    targetLabel:characterLinkTargetLabel.value.trim(),
+    direction:characterLinkDirection.value,
+    visibility:characterLinkVisibility.value,
+    intimacy:clampRelationScore(characterLinkIntimacy.value),
+    trust:clampRelationScore(characterLinkTrust.value),
+    notes:characterLinkNotes.value.trim()
+  };
+
+  const btn = saveCharacterLinkBtn;
+  btn.disabled = true;
+  btn.textContent = "☁️ 儲存中……";
+  try{
+    const saved = await apiPost("saveCharacterRelation",{
+      novelId:currentNovel["ID"],
+      relationId:editingCharacterLinkId || "",
+      data
+    });
+
+    const i = characterLinks.findIndex(x => x.id === saved.id);
+    if(i >= 0) characterLinks[i] = saved;
+    else characterLinks.push(saved);
+
+    editingCharacterLinkId = "";
+    currentCharacter = characterById(sourceCharacterId) || currentCharacter;
+    showToast("✅ 人物關係已儲存");
+    openCharacterDetail(currentCharacter.id);
+  }catch(e){
+    console.error(e);
+    showToast(e.message || "人物關係儲存失敗");
+  }finally{
+    btn.disabled = false;
+    btn.textContent = "💾 儲存關係";
+  }
+}
+
+async function deleteCharacterLink(id){
+  if(!confirm("確定移除這筆人物關係？")) return;
+  try{
+    await apiPost("deleteCharacterRelation",{
+      novelId:currentNovel["ID"],
+      relationId:id
+    });
+    characterLinks = characterLinks.filter(x => x.id !== id);
+    renderCharacterLinks();
+    showToast("✅ 人物關係已移除");
+  }catch(e){ showToast(e.message || "移除失敗"); }
+}
+
+/* =========================================================
  * v1.4 Relations — 人物 × 勢力雙向關聯
  * 單一來源：relations.json
  * =======================================================*/
@@ -635,6 +826,7 @@ function jumpToCharacter(id){
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.characterLinkEditor.classList.contains("hidden")) return cancelCharacterLinkEditor();
   if (!screens.relationEditor.classList.contains("hidden")) return cancelRelationEditor();
   if (!screens.factionEditor.classList.contains("hidden")) return cancelFactionEditor();
   if (!screens.factionSection.classList.contains("hidden")) return openFactionDetail(currentFaction.id);
