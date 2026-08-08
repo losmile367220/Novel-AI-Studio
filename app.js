@@ -37,7 +37,8 @@ const screens = {
   factionSection: document.getElementById("factionSectionView"),
   factionEditor: document.getElementById("factionEditorView"),
   relationEditor: document.getElementById("relationEditorView"),
-  characterLinkEditor: document.getElementById("characterLinkEditorView")
+  characterLinkEditor: document.getElementById("characterLinkEditorView"),
+  relationshipGraph: document.getElementById("relationshipGraphView")
 };
 
 const sectionGroups = {
@@ -176,7 +177,8 @@ function showScreen(name) {
     factionSection:[factionSectionGroups[currentFactionSection]?.title || "勢力資料",currentFaction?.name || ""],
     factionEditor:[document.getElementById("factionId")?.value ? "✏️ 編輯勢力" : "＋ 新增勢力",currentNovel?.["書名"] || ""],
     relationEditor:["🔗 關聯系統",currentNovel?.["書名"] || ""],
-    characterLinkEditor:["👥 人物關係",currentNovel?.["書名"] || ""]
+    characterLinkEditor:["👥 人物關係",currentNovel?.["書名"] || ""],
+    relationshipGraph:["🕸️ 關係圖譜",currentNovel?.["書名"] || ""]
   };
   document.getElementById("pageTitle").textContent = titles[name][0];
   document.getElementById("pageSubtitle").textContent = titles[name][1];
@@ -511,6 +513,178 @@ document.getElementById("roleFilters").addEventListener("click", event => {
 
 
 /* =========================================================
+ * v1.6 Relationship Graph
+ * 使用既有 relations + characterLinks，不新增後端資料
+ * =======================================================*/
+function graphRelationView(link, centerId){
+  if(link.sourceCharacterId === centerId){
+    return {
+      otherId:link.targetCharacterId,
+      label:link.sourceLabel || link.relationType || "關係",
+      arrow:link.direction === "oneway" ? "→" : "↔"
+    };
+  }
+
+  if(link.direction !== "oneway" && link.targetCharacterId === centerId){
+    return {
+      otherId:link.sourceCharacterId,
+      label:link.targetLabel || link.sourceLabel || link.relationType || "關係",
+      arrow:"↔"
+    };
+  }
+
+  return null;
+}
+
+function openRelationshipGraph(centerId=""){
+  if(!characters.length){
+    showToast("正在讀取人物資料……");
+  }
+
+  const select = document.getElementById("graphCenterCharacter");
+  select.innerHTML = characters.map(c =>
+    `<option value="${safeAttr(c.id)}">${escapeHtml(c.name || "未命名人物")}｜${escapeHtml(c.role || "未設定")}</option>`
+  ).join("");
+
+  const preferred =
+    centerId ||
+    currentCharacter?.id ||
+    characters[0]?.id ||
+    "";
+
+  if(preferred) select.value = preferred;
+
+  showScreen("relationshipGraph");
+  renderRelationshipGraph();
+}
+
+function renderRelationshipGraph(){
+  const select = document.getElementById("graphCenterCharacter");
+  const centerId = select.value;
+  const center = characterById(centerId);
+
+  const canvas = document.getElementById("relationshipGraphCanvas");
+  const empty = document.getElementById("graphEmptyState");
+  const peopleBox = document.getElementById("graphPeopleNodes");
+  const factionBox = document.getElementById("graphFactionNodes");
+  const centerNode = document.getElementById("graphCenterNode");
+  const stats = document.getElementById("graphCenterStats");
+
+  if(!center){
+    canvas.classList.add("hidden");
+    empty.classList.remove("hidden");
+    empty.textContent = "目前沒有可顯示的人物。";
+    return;
+  }
+
+  canvas.classList.remove("hidden");
+
+  const peopleLinks = characterLinks
+    .map(link => ({link,view:graphRelationView(link,centerId)}))
+    .filter(x => x.view);
+
+  const factionLinks = relations
+    .filter(r => r.characterId === centerId);
+
+  centerNode.innerHTML = `
+    <span class="graph-avatar">${emojiForRole(center.role)}</span>
+    <span class="graph-node-copy">
+      <b>${escapeHtml(center.name || "未命名人物")}</b>
+      <small>${escapeHtml(center.role || "未設定")} · ${escapeHtml(center.identity || "")}</small>
+    </span>
+  `;
+  centerNode.onclick = () => jumpToCharacter(centerId);
+
+  stats.innerHTML = `
+    <span>👥 ${peopleLinks.length} 個人物關係</span>
+    <span>🏯 ${factionLinks.length} 個勢力關係</span>
+  `;
+
+  peopleBox.innerHTML = peopleLinks.length
+    ? peopleLinks.map(({link,view}) => {
+        const other = characterById(view.otherId);
+        const secret = link.visibility === "秘密" ? " · 🔒" : "";
+        return `<button class="graph-node graph-person-node" data-graph-node="people" type="button" onclick="jumpToCharacter('${safeAttr(view.otherId)}')">
+          <span class="graph-avatar">${other ? emojiForRole(other.role) : "👤"}</span>
+          <span class="graph-node-copy">
+            <b>${escapeHtml(other?.name || "已刪除的人物")}</b>
+            <small>${escapeHtml(view.arrow + " " + view.label + secret)}</small>
+            <small>親密 ${clampRelationScore(link.intimacy)} · 信任 ${clampRelationScore(link.trust)}</small>
+          </span>
+        </button>`;
+      }).join("")
+    : '<div class="graph-side-empty">尚無人物關係</div>';
+
+  factionBox.innerHTML = factionLinks.length
+    ? factionLinks.map(link => {
+        const faction = factionById(link.factionId);
+        return `<button class="graph-node graph-faction-node" data-graph-node="factions" type="button" onclick="jumpToFaction('${safeAttr(link.factionId)}')">
+          <span class="graph-avatar">${faction ? factionEmoji(faction.type) : "🏯"}</span>
+          <span class="graph-node-copy">
+            <b>${escapeHtml(faction?.name || "已刪除的勢力")}</b>
+            <small>${escapeHtml(link.role || faction?.type || "關聯勢力")}</small>
+          </span>
+        </button>`;
+      }).join("")
+    : '<div class="graph-side-empty">尚無勢力關係</div>';
+
+  const hasAny = peopleLinks.length || factionLinks.length;
+  empty.classList.toggle("hidden", !!hasAny);
+  if(!hasAny){
+    empty.textContent = "這個人物目前還沒有任何人物或勢力關聯。";
+  }
+
+  requestAnimationFrame(drawRelationshipGraphLines);
+}
+
+function drawRelationshipGraphLines(){
+  const canvas = document.getElementById("relationshipGraphCanvas");
+  const svg = document.getElementById("relationshipGraphLines");
+  const center = document.getElementById("graphCenterNode");
+
+  if(!canvas || !svg || !center || canvas.classList.contains("hidden")) return;
+
+  const box = canvas.getBoundingClientRect();
+  svg.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+  svg.setAttribute("width", box.width);
+  svg.setAttribute("height", box.height);
+
+  const centerRect = center.getBoundingClientRect();
+  const cx = centerRect.left - box.left + centerRect.width / 2;
+  const cy = centerRect.top - box.top + centerRect.height / 2;
+
+  const nodes = [
+    ...canvas.querySelectorAll(".graph-person-node"),
+    ...canvas.querySelectorAll(".graph-faction-node")
+  ];
+
+  const mobile = window.innerWidth < 900;
+
+  svg.innerHTML = nodes.map(node => {
+    const r = node.getBoundingClientRect();
+    const nx = r.left - box.left + r.width / 2;
+    const ny = r.top - box.top + r.height / 2;
+
+    if(mobile){
+      const midY = (cy + ny) / 2;
+      return `<path d="M ${cx} ${cy} C ${cx} ${midY}, ${nx} ${midY}, ${nx} ${ny}" />`;
+    }
+
+    const midX = (cx + nx) / 2;
+    return `<path d="M ${cx} ${cy} C ${midX} ${cy}, ${midX} ${ny}, ${nx} ${ny}" />`;
+  }).join("");
+}
+
+document.getElementById("graphCenterCharacter")
+  .addEventListener("change", renderRelationshipGraph);
+
+window.addEventListener("resize", () => {
+  if(!screens.relationshipGraph.classList.contains("hidden")){
+    requestAnimationFrame(drawRelationshipGraphLines);
+  }
+});
+
+/* =========================================================
  * v1.5 Character Relations — 人物 × 人物關係網
  * 單一來源：character-relations.json
  * =======================================================*/
@@ -826,6 +1000,7 @@ function jumpToCharacter(id){
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.relationshipGraph.classList.contains("hidden")) return showScreen("novel");
   if (!screens.characterLinkEditor.classList.contains("hidden")) return cancelCharacterLinkEditor();
   if (!screens.relationEditor.classList.contains("hidden")) return cancelRelationEditor();
   if (!screens.factionEditor.classList.contains("hidden")) return cancelFactionEditor();

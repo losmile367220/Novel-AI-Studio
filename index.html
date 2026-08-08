@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v152-desktopfix">
+  <link rel="stylesheet" href="style.css?v=20260808-v16-graph">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -63,6 +63,7 @@
       <button class="module-card disabled" type="button"><span>🎒</span><b>物品</b><small>即將開放</small></button>
       <button class="module-card disabled" type="button"><span>🧩</span><b>伏筆</b><small>即將開放</small></button>
       <button class="module-card disabled" type="button"><span>📖</span><b>章節</b><small>即將開放</small></button>
+      <button class="module-card active" type="button" onclick="openRelationshipGraph()"><span>🕸️</span><b>關係圖譜</b><small>人物 × 勢力</small></button>
       <button class="module-card disabled" type="button"><span>🤖</span><b>AI 助手</b><small>即將開放</small></button>
     </div>
   </section>
@@ -226,6 +227,50 @@
     </div>
   </section>
 
+  <section id="relationshipGraphView" class="screen hidden">
+    <article class="panel graph-toolbar-panel">
+      <div class="graph-toolbar-copy">
+        <h2>🕸️ 小說關係圖譜</h2>
+        <p class="muted">以人物為中心，整合人物關係與所屬勢力。</p>
+      </div>
+      <div class="graph-character-select">
+        <label for="graphCenterCharacter">中心人物</label>
+        <select id="graphCenterCharacter"></select>
+      </div>
+    </article>
+
+    <div class="graph-legend">
+      <span><i>👤</i> 人物</span>
+      <span><i>🏯</i> 勢力</span>
+      <span><i>🔒</i> 秘密關係</span>
+      <span><i>→</i> 單向</span>
+      <span><i>↔</i> 雙向</span>
+    </div>
+
+    <section id="relationshipGraphCanvas" class="relationship-graph-canvas">
+      <svg id="relationshipGraphLines" class="relationship-graph-lines" aria-hidden="true"></svg>
+
+      <div id="graphPeopleColumn" class="graph-side graph-side-people">
+        <div class="graph-side-title">👥 關聯人物</div>
+        <div id="graphPeopleNodes" class="graph-node-list"></div>
+      </div>
+
+      <div class="graph-center-wrap">
+        <button id="graphCenterNode" class="graph-node graph-node-center" type="button"></button>
+        <div id="graphCenterStats" class="graph-center-stats"></div>
+      </div>
+
+      <div id="graphFactionColumn" class="graph-side graph-side-factions">
+        <div class="graph-side-title">🏯 所屬勢力</div>
+        <div id="graphFactionNodes" class="graph-node-list"></div>
+      </div>
+    </section>
+
+    <div id="graphEmptyState" class="empty hidden">
+      這個人物目前還沒有任何人物或勢力關聯。
+    </div>
+  </section>
+
   <section id="characterDetailView" class="screen hidden">
     <article class="panel character-hero compact-hero">
       <div id="detailEmoji" class="avatar">👤</div>
@@ -305,6 +350,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v15"></script>
+<script src="app.js?v=20260808-v16-graph"></script>
 </body>
 </html>
