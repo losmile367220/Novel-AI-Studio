@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v16-graph">
+  <link rel="stylesheet" href="style.css?v=20260808-v17-timeline">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -63,6 +63,7 @@
       <button class="module-card disabled" type="button"><span>🎒</span><b>物品</b><small>即將開放</small></button>
       <button class="module-card disabled" type="button"><span>🧩</span><b>伏筆</b><small>即將開放</small></button>
       <button class="module-card disabled" type="button"><span>📖</span><b>章節</b><small>即將開放</small></button>
+      <button class="module-card active" type="button" onclick="openTimeline()"><span>📜</span><b>劇情時間線</b><small>事件 × 人物 × 勢力</small></button>
       <button class="module-card active" type="button" onclick="openRelationshipGraph()"><span>🕸️</span><b>關係圖譜</b><small>人物 × 勢力</small></button>
       <button class="module-card disabled" type="button"><span>🤖</span><b>AI 助手</b><small>即將開放</small></button>
     </div>
@@ -227,6 +228,116 @@
     </div>
   </section>
 
+  <section id="timelineView" class="screen hidden">
+    <article class="panel timeline-hero">
+      <div>
+        <h2>📜 劇情時間線</h2>
+        <p class="muted">把小說裡發生過的事件依序串起來，人物、勢力與地點都能一起記錄。</p>
+      </div>
+      <button class="primary small-btn" type="button" onclick="openTimelineEditor()">＋ 新增事件</button>
+    </article>
+
+    <article class="panel timeline-tools">
+      <div class="search-box">
+        <span>🔍</span>
+        <input id="timelineSearch" type="search" placeholder="搜尋事件、人物、勢力、地點…" />
+      </div>
+      <div class="timeline-filter-row">
+        <select id="timelineTypeFilter">
+          <option value="">全部類型</option>
+          <option>主線</option>
+          <option>支線</option>
+          <option>感情</option>
+          <option>戰鬥</option>
+          <option>政治</option>
+          <option>秘密</option>
+          <option>伏筆</option>
+          <option>轉折</option>
+          <option>其他</option>
+        </select>
+        <select id="timelineStatusFilter">
+          <option value="">全部狀態</option>
+          <option>規劃中</option>
+          <option>已發生</option>
+          <option>伏筆未收</option>
+          <option>已完成</option>
+        </select>
+      </div>
+    </article>
+
+    <div id="timelineStats" class="timeline-stats"></div>
+    <div id="timelineList" class="timeline-list"></div>
+    <div id="timelineEmpty" class="empty hidden">目前還沒有劇情事件。</div>
+  </section>
+
+  <section id="timelineEditorView" class="screen hidden">
+    <article class="panel">
+      <div class="section-title">
+        <div>
+          <h2 id="timelineEditorTitle">新增劇情事件</h2>
+          <p class="muted">事件會儲存在這台裝置的小說工作區，之後可再接雲端同步。</p>
+        </div>
+      </div>
+
+      <div class="form-grid-2">
+        <div>
+          <label>事件名稱 *</label>
+          <input id="timelineEventTitle" placeholder="例如：若棠初入王府" />
+        </div>
+        <div>
+          <label>事件類型</label>
+          <select id="timelineEventType">
+            <option>主線</option><option>支線</option><option>感情</option>
+            <option>戰鬥</option><option>政治</option><option>秘密</option>
+            <option>伏筆</option><option>轉折</option><option>其他</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid-2">
+        <div>
+          <label>故事時間 / 日期</label>
+          <input id="timelineStoryTime" placeholder="例如：大晉景和三年・初春 / 第 12 章" />
+        </div>
+        <div>
+          <label>狀態</label>
+          <select id="timelineEventStatus">
+            <option>規劃中</option><option>已發生</option>
+            <option>伏筆未收</option><option>已完成</option>
+          </select>
+        </div>
+      </div>
+
+      <label>地點</label>
+      <input id="timelineLocation" placeholder="例如：攝政王府・聽雪院" />
+
+      <label>事件摘要 *</label>
+      <textarea id="timelineSummary" rows="5" placeholder="這件事發生了什麼？"></textarea>
+
+      <div class="form-grid-2">
+        <div>
+          <label>涉及人物</label>
+          <div id="timelineCharacterChecks" class="timeline-check-grid"></div>
+        </div>
+        <div>
+          <label>涉及勢力</label>
+          <div id="timelineFactionChecks" class="timeline-check-grid"></div>
+        </div>
+      </div>
+
+      <label>伏筆 / 後續影響</label>
+      <textarea id="timelineImpact" rows="4" placeholder="例如：祁玄燼開始懷疑她的真實身份……"></textarea>
+
+      <label>備註</label>
+      <textarea id="timelineNotes" rows="3" placeholder="寫作提醒、章節安排等"></textarea>
+
+      <div class="bottom-actions">
+        <button class="secondary" type="button" onclick="cancelTimelineEditor()">取消</button>
+        <button class="primary" type="button" onclick="saveTimelineEvent()">💾 儲存事件</button>
+      </div>
+    </article>
+  </section>
+
   <section id="relationshipGraphView" class="screen hidden">
     <article class="panel graph-toolbar-panel">
       <div class="graph-toolbar-copy">
@@ -350,6 +461,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v16-graph"></script>
+<script src="app.js?v=20260808-v17-timeline"></script>
 </body>
 </html>

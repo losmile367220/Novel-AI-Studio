@@ -18,6 +18,9 @@ let currentFactionSection = "basic";
 let factionEditorReturn = "factions";
 let relations = [];
 let relationReturn = "detail";
+let timelineEvents = [];
+let editingTimelineEventId = "";
+let timelineReturn = "novel";
 let characterLinks = [];
 let editingCharacterLinkId = "";
 
@@ -38,7 +41,9 @@ const screens = {
   factionEditor: document.getElementById("factionEditorView"),
   relationEditor: document.getElementById("relationEditorView"),
   characterLinkEditor: document.getElementById("characterLinkEditorView"),
-  relationshipGraph: document.getElementById("relationshipGraphView")
+  relationshipGraph: document.getElementById("relationshipGraphView"),
+  timeline: document.getElementById("timelineView"),
+  timelineEditor: document.getElementById("timelineEditorView")
 };
 
 const sectionGroups = {
@@ -178,7 +183,9 @@ function showScreen(name) {
     factionEditor:[document.getElementById("factionId")?.value ? "✏️ 編輯勢力" : "＋ 新增勢力",currentNovel?.["書名"] || ""],
     relationEditor:["🔗 關聯系統",currentNovel?.["書名"] || ""],
     characterLinkEditor:["👥 人物關係",currentNovel?.["書名"] || ""],
-    relationshipGraph:["🕸️ 關係圖譜",currentNovel?.["書名"] || ""]
+    relationshipGraph:["🕸️ 關係圖譜",currentNovel?.["書名"] || ""],
+    timeline:["📜 劇情時間線",currentNovel?.["書名"] || ""],
+    timelineEditor:["✍️ 編輯事件",currentNovel?.["書名"] || ""]
   };
   document.getElementById("pageTitle").textContent = titles[name][0];
   document.getElementById("pageSubtitle").textContent = titles[name][1];
@@ -511,6 +518,229 @@ document.getElementById("roleFilters").addEventListener("click", event => {
   button.classList.add("active"); renderCharacters();
 });
 
+
+/* =========================================================
+ * v1.7 Story Timeline
+ * 第一階段使用 localStorage，零後端修改即可驗證 UX
+ * key 依 novelId 分開，避免小說互相污染
+ * =======================================================*/
+function timelineStorageKey(){
+  return `novel-ai-studio:timeline:${currentNovel?.id || currentNovel?.novelId || "unknown"}`;
+}
+
+function loadTimelineEvents(){
+  try{
+    const raw = localStorage.getItem(timelineStorageKey());
+    timelineEvents = raw ? JSON.parse(raw) : [];
+    if(!Array.isArray(timelineEvents)) timelineEvents = [];
+  }catch(err){
+    console.error("timeline load failed",err);
+    timelineEvents = [];
+  }
+}
+
+function persistTimelineEvents(){
+  localStorage.setItem(timelineStorageKey(), JSON.stringify(timelineEvents));
+}
+
+function timelineTypeEmoji(type){
+  return {
+    "主線":"🎯","支線":"🧩","感情":"❤️","戰鬥":"⚔️","政治":"⚖️",
+    "秘密":"🔒","伏筆":"🪡","轉折":"⚡","其他":"📌"
+  }[type] || "📌";
+}
+
+function openTimeline(){
+  loadTimelineEvents();
+  showScreen("timeline");
+  renderTimeline();
+}
+
+function renderTimeline(){
+  const q = (document.getElementById("timelineSearch")?.value || "").trim().toLowerCase();
+  const type = document.getElementById("timelineTypeFilter")?.value || "";
+  const status = document.getElementById("timelineStatusFilter")?.value || "";
+
+  const filtered = timelineEvents.filter(ev => {
+    if(type && ev.type !== type) return false;
+    if(status && ev.status !== status) return false;
+    if(!q) return true;
+
+    const charNames = (ev.characterIds || []).map(id => characterById(id)?.name || "").join(" ");
+    const factionNames = (ev.factionIds || []).map(id => factionById(id)?.name || "").join(" ");
+    return [
+      ev.title,ev.type,ev.storyTime,ev.location,ev.summary,ev.impact,ev.notes,
+      charNames,factionNames
+    ].join(" ").toLowerCase().includes(q);
+  });
+
+  const stats = document.getElementById("timelineStats");
+  const completed = timelineEvents.filter(e => e.status === "已完成" || e.status === "已發生").length;
+  const unresolved = timelineEvents.filter(e => e.status === "伏筆未收").length;
+  stats.innerHTML = `
+    <div><b>${timelineEvents.length}</b><small>全部事件</small></div>
+    <div><b>${completed}</b><small>已發生 / 完成</small></div>
+    <div><b>${unresolved}</b><small>伏筆未收</small></div>
+  `;
+
+  const list = document.getElementById("timelineList");
+  const empty = document.getElementById("timelineEmpty");
+
+  if(!filtered.length){
+    list.innerHTML = "";
+    empty.classList.remove("hidden");
+    empty.textContent = timelineEvents.length ? "沒有符合目前篩選條件的事件。" : "目前還沒有劇情事件，新增第一件吧。";
+    return;
+  }
+
+  empty.classList.add("hidden");
+
+  list.innerHTML = filtered.map((ev,index) => {
+    const chars = (ev.characterIds || []).map(id => characterById(id)).filter(Boolean);
+    const facs = (ev.factionIds || []).map(id => factionById(id)).filter(Boolean);
+
+    return `<article class="timeline-item">
+      <div class="timeline-rail">
+        <span class="timeline-dot">${timelineTypeEmoji(ev.type)}</span>
+        ${index < filtered.length - 1 ? '<span class="timeline-line"></span>' : ''}
+      </div>
+
+      <div class="timeline-card">
+        <div class="timeline-card-head">
+          <div>
+            <div class="timeline-kicker">${escapeHtml(ev.storyTime || "時間未設定")} · ${escapeHtml(ev.type || "其他")}</div>
+            <h3>${escapeHtml(ev.title || "未命名事件")}</h3>
+          </div>
+          <span class="timeline-status">${escapeHtml(ev.status || "規劃中")}</span>
+        </div>
+
+        ${ev.location ? `<div class="timeline-location">📍 ${escapeHtml(ev.location)}</div>` : ""}
+        <p>${escapeHtml(ev.summary || "")}</p>
+
+        ${chars.length ? `<div class="timeline-tags">${chars.map(c =>
+          `<button type="button" onclick="jumpToCharacter('${safeAttr(c.id)}')">👤 ${escapeHtml(c.name)}</button>`
+        ).join("")}</div>` : ""}
+
+        ${facs.length ? `<div class="timeline-tags">${facs.map(f =>
+          `<button type="button" onclick="jumpToFaction('${safeAttr(f.id)}')">🏯 ${escapeHtml(f.name)}</button>`
+        ).join("")}</div>` : ""}
+
+        ${ev.impact ? `<div class="timeline-impact"><b>🪡 後續影響</b><span>${escapeHtml(ev.impact)}</span></div>` : ""}
+
+        <div class="timeline-card-actions">
+          <button type="button" onclick="openTimelineEditor('${safeAttr(ev.id)}')">✏️ 編輯</button>
+          <button class="danger-text" type="button" onclick="deleteTimelineEvent('${safeAttr(ev.id)}')">刪除</button>
+        </div>
+      </div>
+    </article>`;
+  }).join("");
+}
+
+function openTimelineEditor(eventId=""){
+  editingTimelineEventId = eventId;
+  const ev = eventId ? timelineEvents.find(x => x.id === eventId) : null;
+
+  document.getElementById("timelineEditorTitle").textContent = ev ? "編輯劇情事件" : "新增劇情事件";
+  document.getElementById("timelineEventTitle").value = ev?.title || "";
+  document.getElementById("timelineEventType").value = ev?.type || "主線";
+  document.getElementById("timelineStoryTime").value = ev?.storyTime || "";
+  document.getElementById("timelineEventStatus").value = ev?.status || "規劃中";
+  document.getElementById("timelineLocation").value = ev?.location || "";
+  document.getElementById("timelineSummary").value = ev?.summary || "";
+  document.getElementById("timelineImpact").value = ev?.impact || "";
+  document.getElementById("timelineNotes").value = ev?.notes || "";
+
+  const selectedChars = new Set(ev?.characterIds || []);
+  const selectedFacs = new Set(ev?.factionIds || []);
+
+  document.getElementById("timelineCharacterChecks").innerHTML = characters.length
+    ? characters.map(c => `<label class="timeline-check">
+        <input type="checkbox" value="${safeAttr(c.id)}" ${selectedChars.has(c.id) ? "checked" : ""}>
+        <span>${emojiForRole(c.role)} ${escapeHtml(c.name || "未命名人物")}</span>
+      </label>`).join("")
+    : '<div class="muted">尚未建立人物</div>';
+
+  document.getElementById("timelineFactionChecks").innerHTML = factions.length
+    ? factions.map(f => `<label class="timeline-check">
+        <input type="checkbox" value="${safeAttr(f.id)}" ${selectedFacs.has(f.id) ? "checked" : ""}>
+        <span>${factionEmoji(f.type)} ${escapeHtml(f.name || "未命名勢力")}</span>
+      </label>`).join("")
+    : '<div class="muted">尚未建立勢力</div>';
+
+  timelineReturn = "timeline";
+  showScreen("timelineEditor");
+}
+
+function cancelTimelineEditor(){
+  editingTimelineEventId = "";
+  showScreen("timeline");
+  renderTimeline();
+}
+
+function saveTimelineEvent(){
+  const title = document.getElementById("timelineEventTitle").value.trim();
+  const summary = document.getElementById("timelineSummary").value.trim();
+
+  if(!title){
+    showToast("請先輸入事件名稱");
+    return;
+  }
+  if(!summary){
+    showToast("請先輸入事件摘要");
+    return;
+  }
+
+  const characterIds = [...document.querySelectorAll("#timelineCharacterChecks input:checked")].map(x => x.value);
+  const factionIds = [...document.querySelectorAll("#timelineFactionChecks input:checked")].map(x => x.value);
+
+  const data = {
+    id: editingTimelineEventId || `EVT${Date.now()}`,
+    title,
+    type:document.getElementById("timelineEventType").value,
+    storyTime:document.getElementById("timelineStoryTime").value.trim(),
+    status:document.getElementById("timelineEventStatus").value,
+    location:document.getElementById("timelineLocation").value.trim(),
+    summary,
+    characterIds,
+    factionIds,
+    impact:document.getElementById("timelineImpact").value.trim(),
+    notes:document.getElementById("timelineNotes").value.trim(),
+    updatedAt:new Date().toISOString()
+  };
+
+  const idx = timelineEvents.findIndex(x => x.id === data.id);
+  if(idx >= 0){
+    data.createdAt = timelineEvents[idx].createdAt || data.updatedAt;
+    timelineEvents[idx] = data;
+  }else{
+    data.createdAt = data.updatedAt;
+    timelineEvents.push(data);
+  }
+
+  persistTimelineEvents();
+  editingTimelineEventId = "";
+  showToast("劇情事件已儲存");
+  showScreen("timeline");
+  renderTimeline();
+}
+
+function deleteTimelineEvent(id){
+  const ev = timelineEvents.find(x => x.id === id);
+  if(!ev) return;
+  if(!confirm(`確定刪除「${ev.title}」？`)) return;
+
+  timelineEvents = timelineEvents.filter(x => x.id !== id);
+  persistTimelineEvents();
+  renderTimeline();
+  showToast("事件已刪除");
+}
+
+document.getElementById("timelineSearch")
+  .addEventListener("input",renderTimeline);
+document.getElementById("timelineTypeFilter")
+  .addEventListener("change",renderTimeline);
+document.getElementById("timelineStatusFilter")
+  .addEventListener("change",renderTimeline);
 
 /* =========================================================
  * v1.6 Relationship Graph
@@ -1000,6 +1230,8 @@ function jumpToCharacter(id){
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.timelineEditor.classList.contains("hidden")) return cancelTimelineEditor();
+  if (!screens.timeline.classList.contains("hidden")) return showScreen("novel");
   if (!screens.relationshipGraph.classList.contains("hidden")) return showScreen("novel");
   if (!screens.characterLinkEditor.classList.contains("hidden")) return cancelCharacterLinkEditor();
   if (!screens.relationEditor.classList.contains("hidden")) return cancelRelationEditor();
