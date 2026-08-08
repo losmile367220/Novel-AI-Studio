@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-world12">
+  <link rel="stylesheet" href="style.css?v=20260808-world121">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -83,6 +83,36 @@
     <button class="fab" type="button" onclick="startNewCharacter()">＋</button>
   </section>
 
+
+  <section id="worldView" class="screen hidden">
+    <article class="panel world-hero">
+      <div class="world-hero-copy">
+        <div class="world-icon">🌍</div>
+        <div><h2 id="worldName">世界觀</h2><p id="worldEra" class="muted">建立這本小說的世界規則</p></div>
+      </div>
+      <span id="worldCompletion" class="pill">0%</span>
+    </article>
+    <div class="world-tools">
+      <div class="search-wrap"><span>🔍</span><input id="worldSearch" type="search" placeholder="搜尋世界觀設定"></div>
+    </div>
+    <div id="worldSectionList" class="settings-list"></div>
+  </section>
+
+  <section id="worldDetailView" class="screen hidden">
+    <div id="worldDetailContent" class="detail-sections world-detail-list"></div>
+    <div class="single-bottom"><button class="primary" type="button" onclick="editCurrentWorldSection()">✏️ 編輯這一區</button></div>
+  </section>
+
+  <section id="worldEditorView" class="screen hidden">
+    <form id="worldForm">
+      <div id="worldEditorFields"></div>
+      <div class="wizard-actions world-save-actions">
+        <button class="secondary" type="button" onclick="cancelWorldEditor()">取消</button>
+        <button id="saveWorldBtn" class="primary" type="submit">💾 儲存世界觀</button>
+      </div>
+    </form>
+  </section>
+
   <section id="characterDetailView" class="screen hidden">
     <article class="panel character-hero compact-hero">
       <div id="detailEmoji" class="avatar">👤</div>
@@ -153,7 +183,7 @@
 </main>
 
 <div id="toast" class="toast hidden"></div>
-<script src="config.js?v=20260808-world12"></script>
-<script src="app.js?v=20260808-world12"></script>
+<script src="config.js?v=20260808-world121"></script>
+<script src="app.js?v=20260808-world121"></script>
 </body>
 </html>

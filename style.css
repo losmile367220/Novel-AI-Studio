@@ -26,47 +26,12 @@ button:disabled{
   -webkit-tap-highlight-color:transparent;
 }
 
-
-/* =========================================================
-   v1.2 Worldbuilding — Mobile First
-   ========================================================= */
-.world-hero{
-  display:flex;align-items:flex-start;justify-content:space-between;gap:14px
-}
-.world-hero h2{margin:0;font-size:25px}
-.world-search-wrap{
-  position:sticky;top:74px;z-index:15;background:var(--bg);padding:10px 0
-}
-.settings-list{display:grid;gap:10px;margin-top:2px}
-.settings-row{
-  width:100%;display:grid;grid-template-columns:44px 1fr 24px;align-items:center;
-  gap:10px;border:1px solid var(--border);background:#fff;border-radius:19px;
-  padding:13px 14px;text-align:left;box-shadow:var(--shadow)
-}
-.settings-icon{
-  width:44px;height:44px;display:grid;place-items:center;border-radius:15px;
-  background:var(--primary-soft);font-size:22px
-}
-.settings-copy{min-width:0}
-.settings-title{display:block;font-weight:900;font-size:16px}
-.settings-preview{
-  display:block;margin-top:4px;color:var(--muted);font-size:12px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis
-}
-.settings-arrow{font-size:22px;color:#aaa}
-.single-column{grid-template-columns:1fr!important}
-.single-action{grid-template-columns:1fr!important}
-.world-field-card{
-  background:#fff;border:1px solid var(--border);border-radius:20px;
-  padding:16px;box-shadow:var(--shadow);margin-bottom:12px
-}
-.world-field-card h3{margin:0 0 8px;font-size:15px}
-.world-field-card p{
-  margin:0;white-space:pre-wrap;line-height:1.75;color:#444557
-}
-.world-editor-title{margin:0 0 4px}
-.world-editor-help{margin:0 0 14px;color:var(--muted);font-size:12px;line-height:1.6}
-.world-empty{
-  text-align:center;padding:34px 18px;background:#fff;border:1px dashed var(--border);
-  border-radius:20px;color:var(--muted)
-}
+/* v1.2.1 World */
+.world-hero{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.world-hero-copy{display:flex;align-items:center;gap:12px;min-width:0}
+.world-icon{width:58px;height:58px;border-radius:18px;background:var(--primary-soft);display:grid;place-items:center;font-size:29px;flex:none}
+.world-hero h2{margin:0;font-size:22px}
+.world-tools{position:sticky;top:74px;z-index:15;background:var(--bg);padding:10px 0}
+.settings-copy{min-width:0}.settings-title{display:block;font-weight:900}.settings-preview{display:block;margin-top:4px;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.settings-icon{width:44px;height:44px;border-radius:14px;background:var(--primary-soft);display:grid;place-items:center;font-size:22px}.settings-arrow{color:#aaa;font-size:21px}
+.world-detail-list{grid-template-columns:1fr!important}.world-editor-panel h2{margin:0 0 6px}
