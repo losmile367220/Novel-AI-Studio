@@ -11,6 +11,11 @@ let wizardReturn = "characters";
 let worldData = {};
 let currentWorldSection = "overview";
 let worldEditorReturn = "world";
+let items = [];
+let filteredItemType = "";
+let currentItem = null;
+let currentItemSection = "basic";
+let itemEditorReturn = "items";
 let locations = [];
 let filteredLocationType = "";
 let currentLocation = null;
@@ -57,6 +62,10 @@ const screens = {
   world: document.getElementById("worldView"),
   worldDetail: document.getElementById("worldDetailView"),
   worldEditor: document.getElementById("worldEditorView"),
+  items: document.getElementById("itemsView"),
+  itemDetail: document.getElementById("itemDetailView"),
+  itemSection: document.getElementById("itemSectionView"),
+  itemEditor: document.getElementById("itemEditorView"),
   locations: document.getElementById("locationsView"),
   locationDetail: document.getElementById("locationDetailView"),
   locationSection: document.getElementById("locationSectionView"),
@@ -209,6 +218,10 @@ function showScreen(name) {
     world:["🌍 世界觀",currentNovel?.["書名"] || ""],
     worldDetail:[worldSectionTitle(currentWorldSection),currentNovel?.["書名"] || ""],
     worldEditor:["✏️ " + worldSectionTitle(currentWorldSection),currentNovel?.["書名"] || ""],
+    items:["🎒 物品／道具",currentNovel?.["書名"] || ""],
+    itemDetail:[currentItem ? `${itemEmoji(currentItem.type)} ${currentItem.name}` : "🎒 物品",currentNovel?.["書名"] || ""],
+    itemSection:[itemSectionGroups[currentItemSection]?.title || "物品資料",currentItem?.name || ""],
+    itemEditor:[document.getElementById("itemId")?.value ? "✏️ 編輯物品" : "＋ 新增物品",currentNovel?.["書名"] || ""],
     locations:["📍 地點資料庫",currentNovel?.["書名"] || ""],
     locationDetail:[currentLocation ? `${locationEmoji(currentLocation.type)} ${currentLocation.name}` : "📍 地點",currentNovel?.["書名"] || ""],
     locationSection:[locationSectionGroups[currentLocationSection]?.title || "地點資料",currentLocation?.name || ""],
@@ -256,6 +269,7 @@ async function openNovel(novelId) {
     characters = await apiGet("getCharacters", {novelId:currentNovel["ID"]});
     document.getElementById("characterCount").textContent = `${characters.length} 位`;
   } catch (e) { document.getElementById("characterCount").textContent = "讀取失敗"; }
+  try { items = await apiGet("getItems", {novelId:currentNovel["ID"]}) || []; document.getElementById("itemCount").textContent = `${items.length} 個`; } catch(e) { document.getElementById("itemCount").textContent = "讀取失敗"; }
   try { locations = await apiGet("getLocations", {novelId:currentNovel["ID"]}) || []; document.getElementById("locationCount").textContent = `${locations.length} 個`; } catch(e) { document.getElementById("locationCount").textContent = "讀取失敗"; }
   try { factions = await apiGet("getFactions", {novelId:currentNovel["ID"]}); document.getElementById("factionCount").textContent = `${factions.length} 個`; } catch(e) { document.getElementById("factionCount").textContent = "讀取失敗"; }
   try { relations = await apiGet("getRelations", {novelId:currentNovel["ID"]}) || []; } catch(e) { console.warn("關聯資料讀取失敗", e); relations = []; }
@@ -530,6 +544,375 @@ worldForm.addEventListener("submit",async e=>{
 worldSearch.addEventListener("input",renderWorldSections);
 
 
+
+/* =========================================================
+ * v2.7.1 物品／道具資料庫
+ * items.json
+ * =======================================================*/
+const itemSectionGroups={
+  basic:{title:"📋 基本資料",icon:"📋",fields:[["名稱","name"],["類型","type"],["別名","alias"],["稀有度／重要度","importance"]]},
+  ownership:{title:"👤 持有與歸屬",icon:"👤",fields:[["目前持有人","ownerCharacterId"],["所屬勢力","factionId"],["目前所在地","locationId"],["取得方式／來源","origin"]]},
+  appearance:{title:"✨ 外觀與特性",icon:"✨",fields:[["外觀描述","appearance"],["材質／構造","material"],["能力／效果","effect"],["限制／代價","limitation"]]},
+  story:{title:"📖 劇情用途",icon:"📖",fields:[["首次出現章節","firstChapterId"],["劇情功能","storyRole"],["目前狀態","status"],["重要經歷","history"]]},
+  relation:{title:"🧩 關聯資料",icon:"🧩",fields:[["關聯伏筆","plotHookIds"],["相關人物","characterIds"]]},
+  secret:{title:"🔒 秘密",icon:"🔒",fields:[["真正用途／秘密","secret"],["他人誤解／表面資訊","publicInfo"]]},
+  notes:{title:"📝 備註",icon:"📝",fields:[["備註","notes"]]}
+};
+
+function itemEmoji(type){
+  return ({
+    "武器":"⚔️","藥物／毒物":"🧪","信物／飾品":"💎","書信／文書":"📜",
+    "權力象徵":"👑","寶物／奇物":"✨","日常物品":"🎒"
+  })[type] || "📦";
+}
+
+function itemCharacterName(id){return characters.find(c=>c.id===id)?.name||""}
+function itemFactionName(id){return factions.find(f=>f.id===id)?.name||""}
+function itemLocationName(id){return locations.find(l=>l.id===id)?.name||""}
+function itemChapterName(id){
+  const c=chapters.find(ch=>ch.id===id);
+  return c ? `第 ${c.number} 章｜${c.title||"未命名"}` : "";
+}
+function itemHookNames(ids){
+  const set=new Set(ids||[]);
+  return plotHooks.filter(h=>set.has(h.id)).map(h=>h.name).filter(Boolean);
+}
+function itemCharacterNames(ids){
+  const set=new Set(ids||[]);
+  return characters.filter(c=>set.has(c.id)).map(c=>c.name).filter(Boolean);
+}
+
+async function preloadItemRefs(){
+  const tasks=[];
+  if(!characters.length) tasks.push(apiGet("getCharacters",{novelId:currentNovel["ID"]}).then(v=>characters=v||[]));
+  if(!factions.length) tasks.push(apiGet("getFactions",{novelId:currentNovel["ID"]}).then(v=>factions=v||[]));
+  if(!locations.length) tasks.push(apiGet("getLocations",{novelId:currentNovel["ID"]}).then(v=>locations=v||[]));
+  if(!chapters.length) tasks.push(apiGet("getChapters",{novelId:currentNovel["ID"]}).then(v=>{
+    chapters=v||[];
+    chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
+  }));
+  if(!plotHooks.length) tasks.push(loadPlotHooksFromCloud());
+  if(tasks.length) await Promise.allSettled(tasks);
+}
+
+async function openItems(){
+  showScreen("items");
+  document.getElementById("itemList").innerHTML='<div class="empty">正在讀取物品……</div>';
+
+  try{
+    items=await apiGet("getItems",{novelId:currentNovel["ID"]})||[];
+    document.getElementById("itemCount").textContent=`${items.length} 個`;
+    await preloadItemRefs();
+    renderItems();
+  }catch(e){
+    console.error(e);
+    document.getElementById("itemList").innerHTML=`<div class="empty">${escapeHtml(e.message||"讀取失敗")}</div>`;
+  }
+}
+
+async function refreshItems(){
+  try{
+    items=await apiGet("getItems",{novelId:currentNovel["ID"]})||[];
+    document.getElementById("itemCount").textContent=`${items.length} 個`;
+    await preloadItemRefs();
+    renderItems();
+    showToast("✅ 物品資料已同步");
+  }catch(e){
+    showToast(e.message||"同步失敗");
+  }
+}
+
+function renderItems(){
+  const q=(document.getElementById("itemSearch")?.value||"").trim().toLowerCase();
+
+  const rows=items.filter(item=>{
+    if(filteredItemType && item.type!==filteredItemType) return false;
+
+    const text=[
+      item.name,item.alias,item.type,item.importance,
+      itemCharacterName(item.ownerCharacterId),
+      itemFactionName(item.factionId),
+      itemLocationName(item.locationId),
+      item.origin,item.appearance,item.material,item.effect,item.limitation,
+      itemChapterName(item.firstChapterId),
+      item.storyRole,item.status,item.history,
+      ...itemHookNames(item.plotHookIds),
+      ...itemCharacterNames(item.characterIds),
+      item.secret,item.publicInfo,item.notes
+    ].join(" ").toLowerCase();
+
+    return !q || text.includes(q);
+  });
+
+  document.getElementById("itemList").innerHTML=rows.length?rows.map(item=>{
+    const owner=itemCharacterName(item.ownerCharacterId);
+    const loc=itemLocationName(item.locationId);
+
+    return `<button class="character-card" type="button" onclick="openItemDetail('${safeAttr(item.id)}')">
+      <div class="character-avatar">${itemEmoji(item.type)}</div>
+      <div class="copy">
+        <div class="card-title">${escapeHtml(item.name||"未命名物品")}</div>
+        <div class="card-meta">${escapeHtml(item.type||"未分類")} · ${escapeHtml(owner||loc||item.importance||"尚未設定歸屬")}</div>
+      </div>
+      <div class="character-arrow">›</div>
+    </button>`;
+  }).join(""):'<div class="empty">目前沒有符合條件的物品。</div>';
+}
+
+function itemDisplayValue(key,value){
+  if(key==="ownerCharacterId") return itemCharacterName(value)||"尚未指定";
+  if(key==="factionId") return itemFactionName(value)||"尚未指定";
+  if(key==="locationId") return itemLocationName(value)||"尚未指定";
+  if(key==="firstChapterId") return itemChapterName(value)||"尚未指定";
+  if(key==="plotHookIds") return itemHookNames(value).join("、")||"尚未指定";
+  if(key==="characterIds") return itemCharacterNames(value).join("、")||"尚未指定";
+  return value||"尚未設定";
+}
+
+function openItemDetail(id){
+  currentItem=items.find(x=>x.id===id);
+  if(!currentItem) return showToast("找不到物品");
+
+  document.getElementById("itemDetailEmoji").textContent=itemEmoji(currentItem.type);
+  document.getElementById("itemDetailName").textContent=currentItem.name||"未命名物品";
+  document.getElementById("itemDetailSummary").textContent=currentItem.alias
+    ? `別名：${currentItem.alias}`
+    : (currentItem.storyRole||currentItem.appearance||"尚未設定描述");
+  document.getElementById("itemDetailType").textContent=currentItem.type||"未分類";
+  document.getElementById("itemDetailOwner").textContent=
+    itemCharacterName(currentItem.ownerCharacterId)||
+    itemFactionName(currentItem.factionId)||
+    itemLocationName(currentItem.locationId)||"";
+
+  document.getElementById("itemDetailMenu").innerHTML=Object.entries(itemSectionGroups).map(([key,group])=>{
+    const preview=group.fields
+      .map(([,field])=>itemDisplayValue(field,currentItem[field]))
+      .find(v=>v && !/^尚未/.test(v)) || "尚未設定";
+
+    return `<button class="settings-row" type="button" onclick="openItemSection('${key}')">
+      <span class="settings-icon">${group.icon}</span>
+      <span class="settings-copy">
+        <span class="settings-title">${group.title.replace(/^..\\s/,"")}</span>
+        <span class="settings-preview">${escapeHtml(preview)}</span>
+      </span>
+      <span class="settings-arrow">›</span>
+    </button>`;
+  }).join("");
+
+  showScreen("itemDetail");
+}
+
+function openItemSection(section){
+  currentItemSection=section;
+  const group=itemSectionGroups[section];
+
+  document.getElementById("itemSectionCards").innerHTML=group.fields.map(([label,key])=>`
+    <article class="detail-card">
+      <h3>${escapeHtml(label)}</h3>
+      <p>${escapeHtml(itemDisplayValue(key,currentItem[key]))}</p>
+    </article>
+  `).join("");
+
+  showScreen("itemSection");
+}
+
+function startNewItem(){
+  currentItem=null;
+  openItemEditor("basic","items");
+}
+function editItemFromDetail(){openItemEditor("basic","itemDetail")}
+function editCurrentItemSection(){openItemEditor(currentItemSection,"itemSection")}
+
+async function openItemEditor(section="basic",returnTo="items"){
+  currentItemSection=section;
+  itemEditorReturn=returnTo;
+  document.getElementById("itemId").value=currentItem?.id||"";
+
+  await preloadItemRefs();
+
+  const groups=currentItem
+    ? {[section]:itemSectionGroups[section]}
+    : itemSectionGroups;
+
+  const types=["武器","藥物／毒物","信物／飾品","書信／文書","權力象徵","寶物／奇物","日常物品","其他"];
+  const importance=["核心道具","重要","一般"];
+  const statuses=["正常","遺失","損壞","被奪走","封存","已消耗","已銷毀"];
+
+  document.getElementById("itemEditorFields").innerHTML=Object.values(groups).map(group=>`
+    <section class="panel faction-editor-panel">
+      <h3>${group.title}</h3>
+      ${group.fields.map(([label,key])=>{
+        const raw=currentItem?.[key];
+        const value=escapeHtml(raw||"");
+
+        if(key==="type") return `<label>${label}</label><select id="itm_${key}">
+          ${types.map(v=>`<option ${raw===v?"selected":""}>${v}</option>`).join("")}
+        </select>`;
+
+        if(key==="importance") return `<label>${label}</label><select id="itm_${key}">
+          ${importance.map(v=>`<option ${raw===v?"selected":""}>${v}</option>`).join("")}
+        </select>`;
+
+        if(key==="status") return `<label>${label}</label><select id="itm_${key}">
+          ${statuses.map(v=>`<option ${raw===v?"selected":""}>${v}</option>`).join("")}
+        </select>`;
+
+        if(key==="ownerCharacterId") return `<label>${label}</label><select id="itm_${key}">
+          <option value="">未指定人物</option>
+          ${characters.map(c=>`<option value="${safeAttr(c.id)}" ${raw===c.id?"selected":""}>${escapeHtml(c.name||"未命名人物")}</option>`).join("")}
+        </select>`;
+
+        if(key==="factionId") return `<label>${label}</label><select id="itm_${key}">
+          <option value="">未指定勢力</option>
+          ${factions.map(f=>`<option value="${safeAttr(f.id)}" ${raw===f.id?"selected":""}>${escapeHtml(f.name||"未命名勢力")}</option>`).join("")}
+        </select>`;
+
+        if(key==="locationId") return `<label>${label}</label><select id="itm_${key}">
+          <option value="">未指定地點</option>
+          ${locations.map(l=>`<option value="${safeAttr(l.id)}" ${raw===l.id?"selected":""}>${escapeHtml(l.name||"未命名地點")}</option>`).join("")}
+        </select>`;
+
+        if(key==="firstChapterId") return `<label>${label}</label><select id="itm_${key}">
+          <option value="">未指定章節</option>
+          ${sortedChapters().map(ch=>`<option value="${safeAttr(ch.id)}" ${raw===ch.id?"selected":""}>第 ${ch.number} 章｜${escapeHtml(ch.title||"未命名")}</option>`).join("")}
+        </select>`;
+
+        if(key==="plotHookIds"){
+          const set=new Set(raw||[]);
+          return `<label>${label}</label><div id="itm_${key}" class="plot-hook-checks wide">
+            ${plotHooks.length?plotHooks.map(h=>`<label><input type="checkbox" value="${safeAttr(h.id)}" ${set.has(h.id)?"checked":""}>${escapeHtml(h.name||"未命名伏筆")}</label>`).join(""):"<small>尚未建立伏筆</small>"}
+          </div>`;
+        }
+
+        if(key==="characterIds"){
+          const set=new Set(raw||[]);
+          return `<label>${label}</label><div id="itm_${key}" class="plot-hook-checks wide">
+            ${characters.length?characters.map(c=>`<label><input type="checkbox" value="${safeAttr(c.id)}" ${set.has(c.id)?"checked":""}>${escapeHtml(c.name||"未命名人物")}</label>`).join(""):"<small>尚未建立人物</small>"}
+          </div>`;
+        }
+
+        const short=["name","alias","origin"].includes(key);
+        return short
+          ? `<label>${label}</label><input id="itm_${key}" value="${value}">`
+          : `<label>${label}</label><textarea id="itm_${key}">${value}</textarea>`;
+      }).join("")}
+    </section>
+  `).join("");
+
+  showScreen("itemEditor");
+}
+
+function readItemEditorValue(key){
+  const el=document.getElementById(`itm_${key}`);
+  if(!el) return undefined;
+
+  if(key==="plotHookIds"||key==="characterIds"){
+    return [...el.querySelectorAll("input:checked")].map(x=>x.value);
+  }
+  return el.value.trim();
+}
+
+function cancelItemEditor(){
+  if(itemEditorReturn==="itemDetail"&&currentItem) return openItemDetail(currentItem.id);
+  if(itemEditorReturn==="itemSection"&&currentItem) return openItemSection(currentItemSection);
+  showScreen("items");
+}
+
+async function saveItemEditor(){
+  const button=document.getElementById("saveItemBtn");
+  const isEdit=!!document.getElementById("itemId").value;
+  const data=isEdit?{...currentItem}:{};
+
+  const groups=isEdit
+    ? {[currentItemSection]:itemSectionGroups[currentItemSection]}
+    : itemSectionGroups;
+
+  Object.values(groups).forEach(group=>{
+    group.fields.forEach(([,key])=>{
+      const value=readItemEditorValue(key);
+      if(value!==undefined) data[key]=value;
+    });
+  });
+
+  if(!isEdit&&!String(data.name||"").trim()) return showToast("請先輸入物品名稱");
+
+  button.disabled=true;
+  button.textContent="☁️ 儲存中……";
+
+  try{
+    let saved;
+
+    if(isEdit){
+      saved=await apiPost("saveItem",{
+        novelId:currentNovel["ID"],
+        itemId:document.getElementById("itemId").value,
+        data
+      });
+
+      const i=items.findIndex(x=>x.id===saved.id);
+      if(i>=0) items[i]=saved;
+    }else{
+      saved=await apiPost("createItem",{
+        novelId:currentNovel["ID"],
+        data
+      });
+      items.push(saved);
+    }
+
+    currentItem=saved;
+    document.getElementById("itemCount").textContent=`${items.length} 個`;
+    renderItems();
+    showToast("✅ 物品已儲存");
+    openItemDetail(saved.id);
+
+  }catch(e){
+    console.error(e);
+    showToast(e.message||"物品儲存失敗");
+  }finally{
+    button.disabled=false;
+    button.textContent="💾 儲存物品";
+  }
+}
+
+async function deleteCurrentItem(){
+  if(!currentItem||!confirm(`確定刪除「${currentItem.name||"這個物品"}」？`)) return;
+
+  const id=currentItem.id;
+
+  try{
+    await apiPost("deleteItem",{
+      novelId:currentNovel["ID"],
+      itemId:id
+    });
+
+    items=items.filter(x=>x.id!==id);
+    currentItem=null;
+    document.getElementById("itemCount").textContent=`${items.length} 個`;
+    renderItems();
+    showScreen("items");
+    showToast("✅ 物品已刪除");
+
+  }catch(e){
+    showToast(e.message||"刪除失敗");
+  }
+}
+
+const itemSearchEl=document.getElementById("itemSearch");
+if(itemSearchEl) itemSearchEl.addEventListener("input",renderItems);
+
+const itemFiltersEl=document.getElementById("itemFilters");
+if(itemFiltersEl){
+  itemFiltersEl.addEventListener("click",event=>{
+    const button=event.target.closest("[data-item-type]");
+    if(!button) return;
+
+    document.querySelectorAll("#itemFilters .filter-chip").forEach(x=>x.classList.remove("active"));
+    button.classList.add("active");
+
+    filteredItemType=button.dataset.itemType||"";
+    renderItems();
+  });
+}
 
 /* =========================================================
  * v2.6 地點資料庫
@@ -3197,6 +3580,10 @@ function jumpToCharacter(id){
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.itemEditor.classList.contains("hidden")) return cancelItemEditor();
+  if (!screens.itemSection.classList.contains("hidden")) return openItemDetail(currentItem.id);
+  if (!screens.itemDetail.classList.contains("hidden")) return showScreen("items");
+  if (!screens.items.classList.contains("hidden")) return showScreen("novel");
   if (!screens.locationEditor.classList.contains("hidden")) return cancelLocationEditor();
   if (!screens.locationSection.classList.contains("hidden")) return openLocationDetail(currentLocation.id);
   if (!screens.locationDetail.classList.contains("hidden")) return showScreen("locations");
