@@ -242,3 +242,232 @@ button:disabled{
   }
 }
 
+/* =========================================================
+   v1.5.2 Desktop UI Fix
+   桌機版專用；手機版 v1.5.1 保持不變
+   ========================================================= */
+
+@media (min-width: 900px){
+
+  /* 桌機主內容不再縮成 720px 細柱 */
+  main{
+    max-width:1180px;
+    padding:26px 28px 120px;
+  }
+
+  /* Header 視覺稍微放大 */
+  .app-header{
+    min-height:78px;
+    padding:12px 28px;
+    grid-template-columns:44px minmax(0,1fr) 72px;
+  }
+  .header-copy h1{
+    font-size:22px;
+  }
+  .header-copy p{
+    font-size:12px;
+  }
+
+  /* 人物詳細頁改成真正桌機 dashboard */
+  #characterDetailView{
+    display:grid;
+    grid-template-columns:minmax(0,1.55fr) minmax(320px,.85fr);
+    gap:18px;
+    align-items:start;
+  }
+
+  #characterDetailView.hidden{
+    display:none!important;
+  }
+
+  /* Hero 橫跨兩欄 */
+  #characterDetailView > .character-hero{
+    grid-column:1 / -1;
+    padding:20px 22px;
+    border-radius:24px;
+  }
+
+  #characterDetailView .character-hero .avatar{
+    width:76px;
+    height:76px;
+    border-radius:22px;
+    font-size:36px;
+  }
+
+  #characterDetailView .hero-copy h2{
+    font-size:28px;
+  }
+
+  #characterDetailView .hero-copy>p{
+    font-size:13px;
+    max-width:760px;
+  }
+
+  /* 左側：人物資料卡 */
+  #characterDetailView > #detailMenu{
+    grid-column:1;
+    grid-row:2 / span 2;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px;
+    margin-top:0;
+    align-content:start;
+  }
+
+  #characterDetailView #detailMenu .settings-row{
+    grid-template-columns:46px minmax(0,1fr) 18px;
+    gap:11px;
+    min-height:118px;
+    padding:16px;
+    border-radius:20px;
+    align-items:start;
+  }
+
+  #characterDetailView #detailMenu .settings-icon{
+    width:46px;
+    height:46px;
+    border-radius:15px;
+    font-size:23px;
+  }
+
+  #characterDetailView #detailMenu .settings-title{
+    font-size:16px;
+    line-height:1.3;
+  }
+
+  #characterDetailView #detailMenu .settings-preview{
+    margin-top:6px;
+    font-size:12px;
+    line-height:1.6;
+    white-space:normal;
+    display:-webkit-box;
+    -webkit-line-clamp:3;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+    word-break:break-word;
+  }
+
+  /* 右側：勢力 / 人物關係 */
+  #characterDetailView > .relation-block{
+    grid-column:2;
+    margin-top:0;
+    padding:16px;
+    border-radius:20px;
+  }
+
+  #characterDetailView > .relation-block:nth-of-type(1){
+    grid-row:2;
+  }
+
+  #characterDetailView > .character-link-block{
+    grid-row:3;
+  }
+
+  #characterDetailView .relation-head b{
+    font-size:16px;
+  }
+
+  #characterDetailView .relation-head small{
+    font-size:11px;
+  }
+
+  #characterDetailView .relation-add{
+    padding:9px 12px;
+    font-size:12px;
+  }
+
+  #characterDetailView .relation-empty{
+    min-height:88px;
+    display:grid;
+    place-items:center;
+  }
+
+  #characterDetailView .relation-main{
+    grid-template-columns:42px minmax(0,1fr) 18px;
+    padding:12px;
+  }
+
+  #characterDetailView .relation-emoji{
+    width:42px;
+    height:42px;
+  }
+
+  /* 底部操作固定為頁面內正常區塊，不再像手機 sticky bar */
+  #characterDetailView > .bottom-actions{
+    position:static;
+    grid-column:1 / -1;
+    grid-row:auto;
+    margin:2px 0 0;
+    padding:14px 0 0;
+    background:transparent;
+    backdrop-filter:none;
+    border-top:1px solid var(--border);
+    grid-template-columns:2fr 1fr;
+  }
+
+  #characterDetailView > .bottom-actions button{
+    min-height:48px;
+    font-size:14px;
+  }
+
+  /* 其他桌機頁面也稍微舒展 */
+  #novelsView,
+  #novelView,
+  #charactersView,
+  #worldView,
+  #worldDetailView,
+  #worldEditorView,
+  #factionsView,
+  #factionDetailView,
+  #factionSectionView,
+  #factionEditorView,
+  #relationEditorView,
+  #characterLinkEditorView,
+  #characterSectionView,
+  #characterWizardView{
+    max-width:1100px;
+    margin-left:auto;
+    margin-right:auto;
+  }
+
+  /* 小說中心卡片桌機更像 dashboard */
+  #novelView .module-grid{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:14px;
+  }
+
+  #novelView .module-card{
+    min-height:136px;
+    padding:18px;
+    border-radius:22px;
+  }
+
+  /* 人物 / 勢力清單兩欄 */
+  #characterList,
+  #factionList{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px;
+  }
+
+  /* 搜尋區不會太窄 */
+  .characters-tools{
+    padding-top:6px;
+  }
+}
+
+/* 大桌機再多一點呼吸感 */
+@media (min-width: 1280px){
+  main{
+    max-width:1280px;
+  }
+
+  #characterDetailView{
+    grid-template-columns:minmax(0,1.7fr) minmax(350px,.8fr);
+    gap:20px;
+  }
+
+  #characterDetailView > #detailMenu{
+    gap:14px;
+  }
+}
+
