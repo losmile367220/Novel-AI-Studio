@@ -525,22 +525,128 @@ document.getElementById("roleFilters").addEventListener("click", event => {
  * key 依 novelId 分開，避免小說互相污染
  * =======================================================*/
 function timelineStorageKey(){
-  return `novel-ai-studio:timeline:${currentNovel?.id || currentNovel?.novelId || "unknown"}`;
+  return `novel-ai-studio:timeline:${currentNovel?.["ID"] || "unknown"}`;
 }
 
-function loadTimelineEvents(){
+function loadLocalTimelineBackup(){
   try{
     const raw = localStorage.getItem(timelineStorageKey());
-    timelineEvents = raw ? JSON.parse(raw) : [];
-    if(!Array.isArray(timelineEvents)) timelineEvents = [];
+    const data = raw ? JSON.parse(raw) : [];
+    return Array.isArray(data) ? data : [];
   }catch(err){
-    console.error("timeline load failed",err);
-    timelineEvents = [];
+    console.warn("timeline local backup load failed",err);
+    return [];
   }
 }
 
-function persistTimelineEvents(){
-  localStorage.setItem(timelineStorageKey(), JSON.stringify(timelineEvents));
+function persistTimelineBackup(){
+  try{
+    localStorage.setItem(
+      timelineStorageKey(),
+      JSON.stringify(timelineEvents)
+    );
+  }catch(err){
+    console.warn("timeline local backup save failed",err);
+  }
+}
+
+function setTimelineCloudStatus(text,state=""){
+  const el = document.getElementById("timelineCloudStatus");
+  if(!el) return;
+
+  el.textContent = text;
+  el.dataset.state = state;
+}
+
+async function loadTimelineFromCloud({allowMigration=true} = {}){
+  const novelId = currentNovel?.["ID"];
+  if(!novelId){
+    throw new Error("找不到小說 ID。");
+  }
+
+  setTimelineCloudStatus(
+    "☁️ 正在同步 Google Drive…",
+    "syncing"
+  );
+
+  let cloud = await apiGet(
+    "getTimelineEvents",
+    {novelId}
+  );
+
+  cloud = Array.isArray(cloud)
+    ? cloud
+    : [];
+
+  /*
+   * v1.7 → v1.7.1 自動搬移：
+   * 雲端為空、本機有事件時，只搬一次。
+   */
+  if(allowMigration && cloud.length === 0){
+    const local = loadLocalTimelineBackup();
+
+    if(local.length){
+      setTimelineCloudStatus(
+        "☁️ 正在搬移舊版時間線…",
+        "syncing"
+      );
+
+      const migration = await apiPost(
+        "importTimelineEvents",
+        {
+          novelId,
+          events:local
+        }
+      );
+
+      if(migration?.events){
+        cloud = migration.events;
+      }else{
+        cloud = await apiGet(
+          "getTimelineEvents",
+          {novelId}
+        ) || [];
+      }
+
+      if(migration?.imported){
+        showToast(
+          `✅ 已將 ${migration.count || local.length} 筆本機事件搬到 Google Drive`
+        );
+      }
+    }
+  }
+
+  timelineEvents = cloud;
+  persistTimelineBackup();
+
+  setTimelineCloudStatus(
+    `☁️ Google Drive 已同步 · ${timelineEvents.length} 筆`,
+    "ok"
+  );
+
+  return timelineEvents;
+}
+
+async function refreshTimelineFromCloud(){
+  try{
+    await loadTimelineFromCloud({
+      allowMigration:false
+    });
+    renderTimeline();
+    showToast("✅ 時間線已同步");
+  }catch(error){
+    console.error(error);
+
+    setTimelineCloudStatus(
+      "⚠️ 雲端同步失敗",
+      "error"
+    );
+
+    showToast(
+      error.message ||
+      "雲端同步失敗"
+    );
+  }
 }
 
 function timelineTypeEmoji(type){
@@ -550,10 +656,30 @@ function timelineTypeEmoji(type){
   }[type] || "📌";
 }
 
-function openTimeline(){
-  loadTimelineEvents();
+async function openTimeline(){
   showScreen("timeline");
+
+  timelineEvents = loadLocalTimelineBackup();
   renderTimeline();
+
+  try{
+    await loadTimelineFromCloud();
+    renderTimeline();
+  }catch(error){
+    console.error(error);
+
+    setTimelineCloudStatus(
+      "⚠️ 雲端同步失敗 · 顯示本機備份",
+      "error"
+    );
+
+    if(!timelineEvents.length){
+      showToast(
+        error.message ||
+        "時間線讀取失敗"
+      );
+    }
+  }
 }
 
 function renderTimeline(){
@@ -677,62 +803,194 @@ function cancelTimelineEditor(){
   renderTimeline();
 }
 
-function saveTimelineEvent(){
-  const title = document.getElementById("timelineEventTitle").value.trim();
-  const summary = document.getElementById("timelineSummary").value.trim();
+async function saveTimelineEvent(){
+  const title = document
+    .getElementById("timelineEventTitle")
+    .value
+    .trim();
+
+  const summary = document
+    .getElementById("timelineSummary")
+    .value
+    .trim();
 
   if(!title){
     showToast("請先輸入事件名稱");
     return;
   }
+
   if(!summary){
     showToast("請先輸入事件摘要");
     return;
   }
 
-  const characterIds = [...document.querySelectorAll("#timelineCharacterChecks input:checked")].map(x => x.value);
-  const factionIds = [...document.querySelectorAll("#timelineFactionChecks input:checked")].map(x => x.value);
+  const characterIds = [
+    ...document.querySelectorAll(
+      "#timelineCharacterChecks input:checked"
+    )
+  ].map(x => x.value);
+
+  const factionIds = [
+    ...document.querySelectorAll(
+      "#timelineFactionChecks input:checked"
+    )
+  ].map(x => x.value);
+
+  const existing = editingTimelineEventId
+    ? timelineEvents.find(
+        x => x.id === editingTimelineEventId
+      )
+    : null;
 
   const data = {
-    id: editingTimelineEventId || `EVT${Date.now()}`,
     title,
-    type:document.getElementById("timelineEventType").value,
-    storyTime:document.getElementById("timelineStoryTime").value.trim(),
-    status:document.getElementById("timelineEventStatus").value,
-    location:document.getElementById("timelineLocation").value.trim(),
+    type:document
+      .getElementById("timelineEventType")
+      .value,
+
+    storyTime:document
+      .getElementById("timelineStoryTime")
+      .value
+      .trim(),
+
+    status:document
+      .getElementById("timelineEventStatus")
+      .value,
+
+    location:document
+      .getElementById("timelineLocation")
+      .value
+      .trim(),
+
     summary,
     characterIds,
     factionIds,
-    impact:document.getElementById("timelineImpact").value.trim(),
-    notes:document.getElementById("timelineNotes").value.trim(),
-    updatedAt:new Date().toISOString()
+
+    impact:document
+      .getElementById("timelineImpact")
+      .value
+      .trim(),
+
+    notes:document
+      .getElementById("timelineNotes")
+      .value
+      .trim(),
+
+    createdAt:existing?.createdAt || ""
   };
 
-  const idx = timelineEvents.findIndex(x => x.id === data.id);
-  if(idx >= 0){
-    data.createdAt = timelineEvents[idx].createdAt || data.updatedAt;
-    timelineEvents[idx] = data;
-  }else{
-    data.createdAt = data.updatedAt;
-    timelineEvents.push(data);
-  }
+  setTimelineCloudStatus(
+    "☁️ 正在儲存…",
+    "syncing"
+  );
 
-  persistTimelineEvents();
-  editingTimelineEventId = "";
-  showToast("劇情事件已儲存");
-  showScreen("timeline");
-  renderTimeline();
+  try{
+    const saved = await apiPost(
+      "saveTimelineEvent",
+      {
+        novelId:currentNovel["ID"],
+        eventId:editingTimelineEventId || "",
+        data
+      }
+    );
+
+    const idx = timelineEvents.findIndex(
+      x => x.id === saved.id
+    );
+
+    if(idx >= 0){
+      timelineEvents[idx] = saved;
+    }else{
+      timelineEvents.push(saved);
+    }
+
+    persistTimelineBackup();
+
+    editingTimelineEventId = "";
+
+    setTimelineCloudStatus(
+      `☁️ Google Drive 已同步 · ${timelineEvents.length} 筆`,
+      "ok"
+    );
+
+    showToast(
+      "✅ 劇情事件已儲存到 Google Drive"
+    );
+
+    showScreen("timeline");
+    renderTimeline();
+
+  }catch(error){
+    console.error(error);
+
+    setTimelineCloudStatus(
+      "⚠️ 儲存失敗",
+      "error"
+    );
+
+    showToast(
+      error.message ||
+      "劇情事件儲存失敗"
+    );
+  }
 }
 
-function deleteTimelineEvent(id){
-  const ev = timelineEvents.find(x => x.id === id);
-  if(!ev) return;
-  if(!confirm(`確定刪除「${ev.title}」？`)) return;
+async function deleteTimelineEvent(id){
+  const ev = timelineEvents.find(
+    x => x.id === id
+  );
 
-  timelineEvents = timelineEvents.filter(x => x.id !== id);
-  persistTimelineEvents();
-  renderTimeline();
-  showToast("事件已刪除");
+  if(!ev) return;
+
+  if(!confirm(
+    `確定刪除「${ev.title}」？`
+  )){
+    return;
+  }
+
+  setTimelineCloudStatus(
+    "☁️ 正在刪除…",
+    "syncing"
+  );
+
+  try{
+    await apiPost(
+      "deleteTimelineEvent",
+      {
+        novelId:currentNovel["ID"],
+        eventId:id
+      }
+    );
+
+    timelineEvents = timelineEvents.filter(
+      x => x.id !== id
+    );
+
+    persistTimelineBackup();
+    renderTimeline();
+
+    setTimelineCloudStatus(
+      `☁️ Google Drive 已同步 · ${timelineEvents.length} 筆`,
+      "ok"
+    );
+
+    showToast(
+      "✅ 事件已從 Google Drive 刪除"
+    );
+
+  }catch(error){
+    console.error(error);
+
+    setTimelineCloudStatus(
+      "⚠️ 刪除失敗",
+      "error"
+    );
+
+    showToast(
+      error.message ||
+      "事件刪除失敗"
+    );
+  }
 }
 
 document.getElementById("timelineSearch")

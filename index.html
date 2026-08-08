@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v17-timeline">
+  <link rel="stylesheet" href="style.css?v=20260808-v171-cloud">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -233,8 +233,12 @@
       <div>
         <h2>📜 劇情時間線</h2>
         <p class="muted">把小說裡發生過的事件依序串起來，人物、勢力與地點都能一起記錄。</p>
+        <div id="timelineCloudStatus" class="timeline-cloud-status">☁️ 等待雲端同步</div>
       </div>
-      <button class="primary small-btn" type="button" onclick="openTimelineEditor()">＋ 新增事件</button>
+      <div class="timeline-hero-actions">
+        <button class="secondary small-btn" type="button" onclick="refreshTimelineFromCloud()">↻ 同步</button>
+        <button class="primary small-btn" type="button" onclick="openTimelineEditor()">＋ 新增事件</button>
+      </div>
     </article>
 
     <article class="panel timeline-tools">
@@ -275,7 +279,7 @@
       <div class="section-title">
         <div>
           <h2 id="timelineEditorTitle">新增劇情事件</h2>
-          <p class="muted">事件會儲存在這台裝置的小說工作區，之後可再接雲端同步。</p>
+          <p class="muted">事件會儲存在 Google Drive 的小說資料夾，可在手機與電腦共用。</p>
         </div>
       </div>
 
@@ -461,6 +465,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v17-timeline"></script>
+<script src="app.js?v=20260808-v171-cloud"></script>
 </body>
 </html>

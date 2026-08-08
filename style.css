@@ -917,3 +917,58 @@ button:disabled{
     gap:0;
   }
 }
+
+
+/* =========================================================
+   v1.7.1 Timeline Google Drive Sync
+   ========================================================= */
+
+.timeline-hero-actions{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex:0 0 auto;
+}
+
+.timeline-cloud-status{
+  display:inline-flex;
+  align-items:center;
+  margin-top:7px;
+  padding:5px 8px;
+  border-radius:999px;
+  background:#f2f1f8;
+  color:var(--muted);
+  font-size:9px;
+  font-weight:800;
+}
+
+.timeline-cloud-status[data-state="syncing"]{
+  background:#fff8e8;
+  color:#98701d;
+}
+
+.timeline-cloud-status[data-state="ok"]{
+  background:#edf9f2;
+  color:#3b8560;
+}
+
+.timeline-cloud-status[data-state="error"]{
+  background:#fff0f0;
+  color:#c25454;
+}
+
+@media(max-width:600px){
+  .timeline-hero{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+  }
+
+  .timeline-hero-actions{
+    flex-direction:column-reverse;
+    align-items:stretch;
+  }
+
+  .timeline-hero-actions .small-btn{
+    white-space:nowrap;
+  }
+}
