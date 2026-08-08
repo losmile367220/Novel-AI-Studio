@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v30-consistency">
+  <link rel="stylesheet" href="style.css?v=20260808-v31-ai-writer-2">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -485,13 +485,16 @@
         <div id="workspaceTabAi" class="workspace-tab-panel hidden">
           <div class="workspace-inspector-head">
             <b>🤖 AI 快捷助手</b>
-            <small>沿用 v1.9 提示詞引擎</small>
+            <small>v3.1 · 本章 Context 智慧提示詞</small>
           </div>
           <div class="workspace-ai-actions">
             <button type="button" onclick="workspaceAI('continue')">✍️ 續寫</button>
             <button type="button" onclick="workspaceAI('polish')">✨ 潤飾</button>
             <button type="button" onclick="workspaceAI('dialogue')">💬 對話</button>
-            <button type="button" onclick="workspaceAI('logic')">🧠 邏輯檢查</button>
+            <button type="button" onclick="workspaceAI('expand')">🎬 擴寫</button>
+          <button type="button" onclick="workspaceAI('emotion')">💗 情緒</button>
+          <button type="button" onclick="workspaceAI('ooc')">🎭 OOC</button>
+          <button type="button" onclick="workspaceAI('logic')">🧠 邏輯檢查</button>
           </div>
           <label>額外要求</label>
           <textarea id="workspaceAIInstruction" rows="4" placeholder="例如：這段氣氛要更曖昧，但不要直接告白。"></textarea>
@@ -537,8 +540,8 @@
   <section id="aiWriterView" class="screen hidden">
     <article class="panel ai-hero">
       <div>
-        <h2>🤖 AI 寫作助手</h2>
-        <p class="muted">自動整理小說資料成提示詞，不使用 API Token。</p>
+        <div class="ai-v31-kicker">AI WRITER 2.0</div><h2>🤖 AI 創作助手 2.0</h2>
+        <p class="muted">自動整理本章關聯、前文、伏筆與場景成提示詞，不使用 API Token。</p>
       </div>
       <span class="pill">Meta AI Ready</span>
     </article>
@@ -551,6 +554,9 @@
       <button type="button" onclick="selectAITask('dialogue')"><span>💬</span><b>角色對話</b><small>依人物關係寫對話</small></button>
       <button type="button" onclick="selectAITask('foreshadow')"><span>🪡</span><b>伏筆檢查</b><small>找出未收束與可埋伏筆</small></button>
       <button type="button" onclick="selectAITask('logic')"><span>🧠</span><b>邏輯檢查</b><small>檢查人設與劇情矛盾</small></button>
+      <button type="button" onclick="selectAITask('expand')"><span>🎬</span><b>擴寫場景</b><small>增加動作、環境與節奏</small></button>
+      <button type="button" onclick="selectAITask('emotion')"><span>💗</span><b>加強情緒</b><small>強化張力與潛台詞</small></button>
+      <button type="button" onclick="selectAITask('ooc')"><span>🎭</span><b>OOC 檢查</b><small>檢查角色是否偏離人設</small></button>
       <button type="button" onclick="selectAITask('custom')"><span>🎯</span><b>自訂任務</b><small>自己告訴 AI 要做什麼</small></button>
     </div>
 
@@ -582,6 +588,7 @@
       </div>
     </article>
 
+    <article class="panel ai-context-panel"><div class="ai-prompt-head"><div><b>🧠 本章 AI Context</b><small id="aiContextStats">選擇章節後可預覽</small></div><button class="secondary small-btn" type="button" onclick="refreshAIContextPreview()">↻ 更新 Context</button></div><div id="aiContextPreview" class="ai-context-preview"><div class="workspace-mini-empty">尚未選擇章節。</div></div></article>
     <article class="panel ai-prompt-panel">
       <div class="ai-prompt-head">
         <div>
@@ -1118,6 +1125,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v30-consistency"></script>
+<script src="app.js?v=20260808-v31-ai-writer-2"></script>
 </body>
 </html>

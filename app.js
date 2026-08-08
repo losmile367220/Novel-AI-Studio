@@ -2273,6 +2273,9 @@ function workspaceAI(task){
   switchWorkspaceTab("ai");
   generateWorkspaceAIPrompt();
 }
+function buildAIItemContext(){
+  return items.length?items.slice(0,40).map(it=>`- ${it.name||"未命名物品"}｜${it.type||"未分類"}｜${it.importance||""}\n  持有人：${itemCharacterName(it.ownerCharacterId)||"未指定"}｜所在地：${itemLocationName(it.locationId)||"未指定"}\n  效果：${it.effect||"未設定"}｜劇情用途：${it.storyRole||"未設定"}\n  秘密：${it.secret||"未設定"}`).join("\n"):"尚未建立物品／道具";
+}
 function generateWorkspaceAIPrompt(){
   if(!workspaceChapter)return showToast("請先選擇章節");
   const task=AI_TASKS[workspaceAITask]||AI_TASKS.continue;
@@ -2311,6 +2314,9 @@ ${buildAIItemContext()}
 
 【本章場景大綱】
 ${buildAISceneContext()}
+
+【前文銜接參考】
+${buildAIPreviousContext(workspaceChapter)}
 
 【目前章節】
 第 ${document.getElementById("workspaceChapterNumber").value} 章｜${document.getElementById("workspaceChapterTitle").value||"未命名"}
@@ -2400,22 +2406,78 @@ const AI_TASKS = {
     title:"人物與劇情邏輯檢查",
     instruction:"檢查人物設定、勢力、關係、世界觀、時間線與正文是否互相矛盾。列出具體問題與修改建議，不要自行改掉原設定。"
   },
+  expand:{
+    title:"擴寫目前場景",
+    instruction:"保留原本事件順序與結果，增加環境、動作、感官、停頓與角色反應，讓場景更完整；不要灌水或新增會改變主線的新事件。"
+  },
+  emotion:{
+    title:"加強情緒張力",
+    instruction:"保留原劇情與人物立場，強化情緒遞進、細微反應、潛台詞與關係張力；避免角色突然性格大變。"
+  },
+  ooc:{
+    title:"角色 OOC 檢查",
+    instruction:"逐一檢查本章出場人物言行是否符合既有人設、身份、關係、能力與已知資訊。列出可疑處、原因與修改方向；證據不足不要硬判。"
+  },
   custom:{
     title:"自訂 AI 任務",
     instruction:"依使用者的自訂要求完成任務。"
   }
 };
 
+function aiChapterById(id){return chapters.find(x=>x.id===id)||null}
+function aiNames(ids,list){const s=new Set(ids||[]);return (list||[]).filter(x=>s.has(x.id)).map(x=>x.name||x.title).filter(Boolean)}
+function buildAIPreviousContext(ch){
+  if(!ch)return "未指定章節";
+  const rows=chapters.filter(x=>(Number(x.number)||0)<(Number(ch.number)||0)).sort((a,b)=>(Number(b.number)||0)-(Number(a.number)||0)).slice(0,2).reverse();
+  if(!rows.length)return "這是目前最前面的章節，沒有前文章節。";
+  return rows.map(x=>{const t=String(x.content||"").trim(),excerpt=t.length>900?t.slice(-900):t;return `第 ${x.number} 章｜${x.title||"未命名"}\n${excerpt||x.notes||"無正文"}`}).join("\n\n");
+}
+function buildAIChapterRelationContext(ch){
+  return `人物：${aiNames(ch.characterIds,characters).join("、")||"未指定"}
+事件：${aiNames(ch.eventIds,timelineEvents).join("、")||"未指定"}
+地點：${aiNames(ch.locationIds,locations).join("、")||"未指定"}
+勢力：${aiNames(ch.factionIds,factions).join("、")||"未指定"}
+物品：${aiNames(ch.itemIds,items).join("、")||"未指定"}`;
+}
+function buildAIChapterCharacterContext(ch){
+  const ids=new Set(ch?.characterIds||[]),rows=characters.filter(c=>ids.has(c.id));
+  return rows.length?rows.map(c=>`【${c.role||"角色"}：${c.name||"未命名"}】\n身份：${c.identity||"未設定"}\n個性：${c.personality||"未設定"}\n能力：${c.abilities||"未設定"}\n弱點：${c.weakness||"未設定"}\n秘密（不可無故提前揭露）：${c.secret||"未設定"}`).join("\n\n"):"本章尚未關聯人物。";
+}
+function buildAIChapterItemContext(ch){
+  const ids=new Set(ch?.itemIds||[]),rows=items.filter(x=>ids.has(x.id));
+  return rows.length?rows.map(it=>`- ${it.name||"未命名物品"}｜${it.type||"未分類"}\n  效果：${it.effect||"未設定"}｜劇情用途：${it.storyRole||"未設定"}\n  秘密：${it.secret||"未設定"}`).join("\n"):"本章尚未關聯重要物品。";
+}
+function buildAIChapterHookContext(ch){
+  const rows=plotHooks.filter(h=>h.status!=="棄用"&&([h.plantChapterId,h.targetChapterId,h.resolveChapterId].includes(ch?.id)||h.status!=="已回收"));
+  return rows.length?rows.slice(0,20).map(h=>`- ${h.name||"未命名"}｜${h.status||"未設定"}｜${h.priority||""}\n  線索：${h.description||"未填"}\n  真相（不可提前揭露）：${h.truth||"未填"}\n  埋下：${hookChapter(h.plantChapterId)}｜預計回收：${hookChapter(h.targetChapterId)}`).join("\n"):"目前沒有需要提醒的伏筆。";
+}
+function buildAIChapterSceneContext(ch){
+  const rows=scenes.filter(s=>s.chapterId===ch?.id).sort((a,b)=>(Number(a.order)||0)-(Number(b.order)||0));
+  return rows.length?rows.map(s=>`- 場景 ${s.order||"?"}｜${s.title||"未命名"}｜${s.status||""}\n  POV：${scenePovName(s.povCharacterId)}｜地點：${s.location||"未指定"}\n  目的：${s.purpose||"未填"}｜摘要：${s.summary||"未填"}`).join("\n"):"本章尚未建立場景大綱。";
+}
+function buildAIContext(ch){
+  if(!ch)return "未指定章節";
+  return `【本章智慧關聯】\n${buildAIChapterRelationContext(ch)}\n\n【本章人物重點】\n${buildAIChapterCharacterContext(ch)}\n\n【本章重要物品】\n${buildAIChapterItemContext(ch)}\n\n【本章伏筆提醒】\n${buildAIChapterHookContext(ch)}\n\n【本章場景大綱】\n${buildAIChapterSceneContext(ch)}\n\n【前文銜接參考】\n${buildAIPreviousContext(ch)}`;
+}
+function refreshAIContextPreview(){
+  const ch=aiChapterById(document.getElementById("aiChapterSelect")?.value),box=document.getElementById("aiContextPreview"),stats=document.getElementById("aiContextStats");if(!box||!stats)return;
+  if(!ch){box.innerHTML='<div class="workspace-mini-empty">尚未選擇章節。</div>';stats.textContent="選擇章節後可預覽";return}
+  const ctx=buildAIContext(ch);box.innerHTML=`<pre>${escapeHtml(ctx)}</pre>`;stats.textContent=`第 ${ch.number} 章 · ${ctx.length.toLocaleString()} 字元 Context`;
+}
 async function openAIWriter(){
   showScreen("aiWriter");
 
   try{
-    if(!chapters.length){
-      chapters=await apiGet("getChapters",{novelId:currentNovel["ID"]})||[];
-    }
-  }catch(e){
-    console.warn("AI 助手章節讀取失敗",e);
-  }
+    const r=await Promise.allSettled([
+      apiGet("getChapters",{novelId:currentNovel["ID"]}),apiGet("getCharacters",{novelId:currentNovel["ID"]}),
+      apiGet("getFactions",{novelId:currentNovel["ID"]}),apiGet("getLocations",{novelId:currentNovel["ID"]}),
+      apiGet("getItems",{novelId:currentNovel["ID"]}),loadTimelineFromCloud({allowMigration:false}),loadPlotHooksFromCloud(),loadScenesFromCloud()
+    ]);
+    if(r[0].status==="fulfilled")chapters=r[0].value||[];if(r[1].status==="fulfilled")characters=r[1].value||[];
+    if(r[2].status==="fulfilled")factions=r[2].value||[];if(r[3].status==="fulfilled")locations=r[3].value||[];
+    if(r[4].status==="fulfilled")items=r[4].value||[];
+  }catch(e){console.warn("AI 助手 Context 讀取失敗",e);}
+
 
   const select=document.getElementById("aiChapterSelect");
   select.innerHTML='<option value="">不指定章節</option>'+chapters
@@ -2425,6 +2487,7 @@ async function openAIWriter(){
 
   if(currentChapter?.id) select.value=currentChapter.id;
   selectAITask(aiSelectedTask||"continue");
+  refreshAIContextPreview();
 }
 
 function selectAITask(task){
@@ -2510,7 +2573,9 @@ function generateAIPrompt(){
 ${ch.content||"尚無正文"}
 
 【章節備註】
-${ch.notes||"無"}`:"未指定章節";
+${ch.notes||"無"}
+
+${buildAIContext(ch)}`:"未指定章節";
 
   const prompt=`你是一位專業的繁體中文小說創作助手。
 
@@ -3817,3 +3882,5 @@ function safeAttr(value) { return String(value ?? "").replace(/['"\\]/g,""); }
 
 if(document.getElementById("consistencySearch"))document.getElementById("consistencySearch").addEventListener("input",renderConsistencyCenter);
 if(document.getElementById("consistencyTypeFilter"))document.getElementById("consistencyTypeFilter").addEventListener("change",renderConsistencyCenter);
+
+const aiChapterSelectV31=document.getElementById("aiChapterSelect");if(aiChapterSelectV31)aiChapterSelectV31.addEventListener("change",refreshAIContextPreview);
