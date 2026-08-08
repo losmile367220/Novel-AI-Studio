@@ -18,6 +18,8 @@ let currentFactionSection = "basic";
 let factionEditorReturn = "factions";
 let relations = [];
 let relationReturn = "detail";
+let selectedChapterSnapshotId = "";
+let chapterSnapshots = [];
 let globalSearchFilter = "";
 let workspaceFocusMode = false;
 let workspaceChapter = null;
@@ -537,6 +539,256 @@ document.getElementById("roleFilters").addEventListener("click", event => {
   button.classList.add("active"); renderCharacters();
 });
 
+
+/* =========================================================
+ * v2.3 Chapter History
+ * chapter-history.json
+ * =======================================================*/
+function formatHistoryTime(iso){
+  if(!iso)return "";
+  try{
+    return new Date(iso).toLocaleString("zh-TW",{
+      month:"2-digit",day:"2-digit",
+      hour:"2-digit",minute:"2-digit"
+    });
+  }catch(e){
+    return iso;
+  }
+}
+
+async function createChapterSnapshot(){
+  if(!workspaceChapter){
+    showToast("請先選擇章節");
+    return;
+  }
+
+  if(workspaceDirty){
+    await saveWorkspaceChapter(false);
+  }
+
+  const label=prompt(
+    "這個版本要取什麼名稱？",
+    `手動快照 ${new Date().toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}`
+  );
+
+  if(label===null)return;
+
+  try{
+    const snapshot=await apiPost("createChapterSnapshot",{
+      novelId:currentNovel["ID"],
+      chapterId:workspaceChapter.id,
+      label:String(label||"手動快照").trim()||"手動快照",
+      data:{
+        number:workspaceChapter.number,
+        title:workspaceChapter.title,
+        status:workspaceChapter.status,
+        content:workspaceChapter.content,
+        notes:workspaceChapter.notes,
+        characterIds:workspaceChapter.characterIds||[],
+        eventIds:workspaceChapter.eventIds||[]
+      }
+    });
+
+    chapterSnapshots.unshift(snapshot);
+    showToast("✅ 已建立章節快照");
+
+    if(!document.getElementById("chapterHistoryModal").classList.contains("hidden")){
+      renderChapterHistoryList();
+      selectChapterSnapshot(snapshot.id);
+    }
+  }catch(e){
+    console.error(e);
+    showToast(e.message||"建立快照失敗");
+  }
+}
+
+async function openChapterHistory(){
+  if(!workspaceChapter){
+    showToast("請先選擇章節");
+    return;
+  }
+
+  if(workspaceDirty){
+    await saveWorkspaceChapter(false);
+  }
+
+  document.getElementById("chapterHistoryModal").classList.remove("hidden");
+  document.getElementById("chapterHistoryTitle").textContent=
+    `第 ${workspaceChapter.number||"?"} 章｜${workspaceChapter.title||"未命名章節"}`;
+
+  selectedChapterSnapshotId="";
+  setChapterHistoryPreviewVisible(false);
+
+  try{
+    chapterSnapshots=await apiGet("getChapterSnapshots",{
+      novelId:currentNovel["ID"],
+      chapterId:workspaceChapter.id
+    })||[];
+
+    chapterSnapshots.sort((a,b)=>
+      String(b.createdAt||"").localeCompare(String(a.createdAt||""))
+    );
+
+    renderChapterHistoryList();
+  }catch(e){
+    console.error(e);
+    chapterSnapshots=[];
+    renderChapterHistoryList();
+    showToast(e.message||"版本紀錄讀取失敗");
+  }
+}
+
+function closeChapterHistory(){
+  document.getElementById("chapterHistoryModal").classList.add("hidden");
+}
+
+function renderChapterHistoryList(){
+  const box=document.getElementById("chapterHistoryList");
+  document.getElementById("chapterHistoryCount").textContent=
+    `${chapterSnapshots.length} 個版本`;
+
+  if(!chapterSnapshots.length){
+    box.innerHTML=`
+      <div class="chapter-history-list-empty">
+        尚未建立版本快照。<br>
+        修改重要段落前可以先按「＋ 快照」。
+      </div>`;
+    return;
+  }
+
+  box.innerHTML=chapterSnapshots.map((s,index)=>`
+    <button type="button"
+      class="chapter-history-item ${selectedChapterSnapshotId===s.id?"active":""}"
+      onclick="selectChapterSnapshot('${safeAttr(s.id)}')">
+      <span class="chapter-history-index">#${chapterSnapshots.length-index}</span>
+      <b>${escapeHtml(s.label||"章節快照")}</b>
+      <small>${escapeHtml(formatHistoryTime(s.createdAt))} · ${chapterCharCount(s.content).toLocaleString()} 字</small>
+    </button>
+  `).join("");
+}
+
+function setChapterHistoryPreviewVisible(show){
+  document.getElementById("chapterHistoryEmpty").classList.toggle("hidden",show);
+  document.getElementById("chapterHistoryPreviewBody").classList.toggle("hidden",!show);
+}
+
+function selectChapterSnapshot(id){
+  const s=chapterSnapshots.find(x=>x.id===id);
+  if(!s)return;
+
+  selectedChapterSnapshotId=id;
+  renderChapterHistoryList();
+  setChapterHistoryPreviewVisible(true);
+
+  document.getElementById("chapterHistoryPreviewLabel").textContent=
+    s.label||"章節快照";
+
+  document.getElementById("chapterHistoryPreviewMeta").textContent=
+    `${s.status||"草稿"} · 第 ${s.number||"?"} 章`;
+
+  document.getElementById("chapterHistoryTime").textContent=
+    `建立：${formatHistoryTime(s.createdAt)}`;
+
+  const currentChars=chapterCharCount(workspaceChapter?.content||"");
+  const snapshotChars=chapterCharCount(s.content||"");
+  const diff=snapshotChars-currentChars;
+
+  document.getElementById("chapterHistoryCharDiff").textContent=
+    `與目前相比 ${diff===0?"0":diff>0?`+${diff}`:diff} 字`;
+
+  document.getElementById("chapterHistoryPreviewTitle").value=
+    s.title||"";
+
+  document.getElementById("chapterHistoryPreviewContent").value=
+    s.content||"";
+
+  document.getElementById("chapterHistoryPreviewNotes").value=
+    s.notes||"";
+}
+
+async function restoreSelectedChapterSnapshot(){
+  const snapshot=chapterSnapshots.find(x=>x.id===selectedChapterSnapshotId);
+  if(!snapshot)return;
+
+  if(!confirm(
+    `確定還原到「${snapshot.label||"這個版本"}」？\n\n還原前會自動替目前內容再建立一份「還原前自動備份」。`
+  ))return;
+
+  try{
+    // Safety snapshot of current content
+    await apiPost("createChapterSnapshot",{
+      novelId:currentNovel["ID"],
+      chapterId:workspaceChapter.id,
+      label:"還原前自動備份",
+      data:{
+        number:workspaceChapter.number,
+        title:workspaceChapter.title,
+        status:workspaceChapter.status,
+        content:workspaceChapter.content,
+        notes:workspaceChapter.notes,
+        characterIds:workspaceChapter.characterIds||[],
+        eventIds:workspaceChapter.eventIds||[]
+      }
+    });
+
+    const restored=await apiPost("saveChapter",{
+      novelId:currentNovel["ID"],
+      chapterId:workspaceChapter.id,
+      data:{
+        number:snapshot.number,
+        title:snapshot.title,
+        status:snapshot.status,
+        content:snapshot.content,
+        notes:snapshot.notes,
+        characterIds:snapshot.characterIds||[],
+        eventIds:snapshot.eventIds||[]
+      }
+    });
+
+    workspaceChapter={...restored};
+    const i=chapters.findIndex(x=>x.id===restored.id);
+    if(i>=0)chapters[i]=restored;
+
+    fillWorkspaceEditor(workspaceChapter);
+    renderWorkspaceChapterList();
+    closeChapterHistory();
+
+    showToast("✅ 已還原到歷史版本");
+  }catch(e){
+    console.error(e);
+    showToast(e.message||"版本還原失敗");
+  }
+}
+
+async function deleteSelectedChapterSnapshot(){
+  const snapshot=chapterSnapshots.find(x=>x.id===selectedChapterSnapshotId);
+  if(!snapshot)return;
+
+  if(!confirm(`確定刪除版本「${snapshot.label||"章節快照"}」？`))return;
+
+  try{
+    await apiPost("deleteChapterSnapshot",{
+      novelId:currentNovel["ID"],
+      snapshotId:snapshot.id
+    });
+
+    chapterSnapshots=chapterSnapshots.filter(x=>x.id!==snapshot.id);
+    selectedChapterSnapshotId="";
+    setChapterHistoryPreviewVisible(false);
+    renderChapterHistoryList();
+    showToast("✅ 歷史版本已刪除");
+  }catch(e){
+    console.error(e);
+    showToast(e.message||"刪除歷史版本失敗");
+  }
+}
+
+document.addEventListener("keydown",event=>{
+  if(event.key==="Escape" &&
+     !document.getElementById("chapterHistoryModal").classList.contains("hidden")){
+    closeChapterHistory();
+  }
+});
 
 /* =========================================================
  * v2.2 Focus Mode + Global Search
