@@ -18,6 +18,8 @@ let currentFactionSection = "basic";
 let factionEditorReturn = "factions";
 let relations = [];
 let relationReturn = "detail";
+let globalSearchFilter = "";
+let workspaceFocusMode = false;
 let workspaceChapter = null;
 let workspaceSaveTimer = null;
 let workspaceDirty = false;
@@ -535,6 +537,257 @@ document.getElementById("roleFilters").addEventListener("click", event => {
   button.classList.add("active"); renderCharacters();
 });
 
+
+/* =========================================================
+ * v2.2 Focus Mode + Global Search
+ * =======================================================*/
+function toggleWorkspaceFocus(){
+  workspaceFocusMode=!workspaceFocusMode;
+  const view=document.getElementById("creativeWorkspaceView");
+  const exit=document.getElementById("focusModeExit");
+
+  view.classList.toggle("workspace-focus-mode",workspaceFocusMode);
+  exit.classList.toggle("hidden",!workspaceFocusMode);
+
+  if(workspaceFocusMode){
+    showToast("✍️ 已進入專注模式");
+  }else{
+    showToast("已離開專注模式");
+  }
+}
+
+function openGlobalSearch(){
+  const modal=document.getElementById("globalSearchModal");
+  modal.classList.remove("hidden");
+
+  const input=document.getElementById("globalSearchInput");
+  setTimeout(()=>input.focus(),50);
+
+  if(input.value.trim()){
+    renderGlobalSearch();
+  }
+}
+
+function closeGlobalSearch(){
+  document.getElementById("globalSearchModal").classList.add("hidden");
+}
+
+function setGlobalSearchFilter(filter){
+  globalSearchFilter=filter;
+
+  document.querySelectorAll("[data-global-filter]").forEach(btn=>{
+    btn.classList.toggle("active",btn.dataset.globalFilter===filter);
+  });
+
+  renderGlobalSearch();
+}
+
+function globalSearchSnippet(text,query,max=90){
+  text=String(text||"").replace(/\s+/g," ").trim();
+  if(!text)return "";
+
+  const lower=text.toLowerCase();
+  const i=lower.indexOf(query.toLowerCase());
+
+  if(i<0){
+    return text.length>max
+      ? text.slice(0,max)+"…"
+      : text;
+  }
+
+  const start=Math.max(0,i-28);
+  const end=Math.min(text.length,start+max);
+
+  return (start>0?"…":"")+
+    text.slice(start,end)+
+    (end<text.length?"…":"");
+}
+
+function buildGlobalSearchResults(query){
+  const q=query.toLowerCase();
+  const results=[];
+
+  chapters.forEach(ch=>{
+    const hay=[
+      ch.title,ch.content,ch.notes,ch.status,
+      `第${ch.number}章`
+    ].join(" ");
+
+    if(hay.toLowerCase().includes(q)){
+      results.push({
+        type:"chapter",
+        icon:"📖",
+        title:`第 ${Number(ch.number)||"?"} 章｜${ch.title||"未命名章節"}`,
+        meta:`${ch.status||"草稿"} · ${chapterCharCount(ch.content).toLocaleString()} 字`,
+        snippet:globalSearchSnippet(
+          [ch.content,ch.notes].filter(Boolean).join(" "),
+          query
+        ),
+        id:ch.id
+      });
+    }
+  });
+
+  characters.forEach(c=>{
+    const hay=[
+      c.name,c.role,c.identity,c.appearance,c.personality,
+      c.likes,c.dislikes,c.abilities,c.weakness,c.past,
+      c.secret,c.relationships,c.notes
+    ].join(" ");
+
+    if(hay.toLowerCase().includes(q)){
+      results.push({
+        type:"character",
+        icon:emojiForRole(c.role),
+        title:c.name||"未命名人物",
+        meta:[c.role,c.identity].filter(Boolean).join(" · "),
+        snippet:globalSearchSnippet(
+          [c.personality,c.abilities,c.secret,c.notes].filter(Boolean).join(" "),
+          query
+        ),
+        id:c.id
+      });
+    }
+  });
+
+  factions.forEach(f=>{
+    const hay=[
+      f.name,f.type,f.leader,f.stance,f.goal,f.purpose,
+      f.secret,f.summary,f.notes
+    ].join(" ");
+
+    if(hay.toLowerCase().includes(q)){
+      results.push({
+        type:"faction",
+        icon:factionEmoji(f.type),
+        title:f.name||"未命名勢力",
+        meta:[f.type,f.leader].filter(Boolean).join(" · "),
+        snippet:globalSearchSnippet(
+          [f.goal,f.purpose,f.stance,f.secret].filter(Boolean).join(" "),
+          query
+        ),
+        id:f.id
+      });
+    }
+  });
+
+  timelineEvents.forEach(e=>{
+    const hay=[
+      e.title,e.type,e.storyTime,e.status,e.location,
+      e.summary,e.impact,e.notes
+    ].join(" ");
+
+    if(hay.toLowerCase().includes(q)){
+      results.push({
+        type:"timeline",
+        icon:timelineTypeEmoji(e.type),
+        title:e.title||"未命名事件",
+        meta:[e.storyTime,e.type,e.status].filter(Boolean).join(" · "),
+        snippet:globalSearchSnippet(
+          [e.summary,e.impact,e.notes].filter(Boolean).join(" "),
+          query
+        ),
+        id:e.id
+      });
+    }
+  });
+
+  return results;
+}
+
+function renderGlobalSearch(){
+  const input=document.getElementById("globalSearchInput");
+  const query=input.value.trim();
+  const summary=document.getElementById("globalSearchSummary");
+  const box=document.getElementById("globalSearchResults");
+
+  if(!query){
+    summary.textContent="輸入關鍵字開始搜尋";
+    box.innerHTML="";
+    return;
+  }
+
+  let results=buildGlobalSearchResults(query);
+
+  if(globalSearchFilter){
+    results=results.filter(x=>x.type===globalSearchFilter);
+  }
+
+  summary.textContent=`找到 ${results.length} 筆結果`;
+
+  if(!results.length){
+    box.innerHTML='<div class="global-search-empty">沒有找到符合資料。</div>';
+    return;
+  }
+
+  box.innerHTML=results.map(r=>`
+    <button type="button" class="global-search-result" onclick="openGlobalSearchResult('${r.type}','${safeAttr(r.id)}')">
+      <span class="global-search-result-icon">${r.icon}</span>
+      <span class="global-search-result-copy">
+        <b>${escapeHtml(r.title)}</b>
+        <small>${escapeHtml(r.meta||"")}</small>
+        ${r.snippet?`<p>${escapeHtml(r.snippet)}</p>`:""}
+      </span>
+      <span class="global-search-result-arrow">›</span>
+    </button>
+  `).join("");
+}
+
+async function openGlobalSearchResult(type,id){
+  closeGlobalSearch();
+
+  if(type==="chapter"){
+    if(screens.creativeWorkspace.classList.contains("hidden")){
+      await openCreativeWorkspace();
+    }
+    await selectWorkspaceChapter(id);
+    return;
+  }
+
+  if(type==="character"){
+    openCharacterDetail(id);
+    return;
+  }
+
+  if(type==="faction"){
+    jumpToFaction(id);
+    return;
+  }
+
+  if(type==="timeline"){
+    showScreen("timeline");
+    renderTimeline();
+
+    setTimeout(()=>{
+      const ev=timelineEvents.find(x=>x.id===id);
+      if(ev){
+        document.getElementById("timelineSearch").value=ev.title||"";
+        renderTimeline();
+      }
+    },50);
+  }
+}
+
+document.getElementById("globalSearchInput")
+  .addEventListener("input",renderGlobalSearch);
+
+document.addEventListener("keydown",event=>{
+  if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){
+    event.preventDefault();
+    openGlobalSearch();
+  }
+
+  if(event.key==="Escape"){
+    if(!document.getElementById("globalSearchModal").classList.contains("hidden")){
+      closeGlobalSearch();
+      return;
+    }
+
+    if(workspaceFocusMode){
+      toggleWorkspaceFocus();
+    }
+  }
+});
 
 /* =========================================================
  * v2.1 Chapter Tools

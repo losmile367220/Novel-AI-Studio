@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v21-chaptertools">
+  <link rel="stylesheet" href="style.css?v=20260808-v22-focus-search">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -273,6 +273,8 @@
               <button type="button" onclick="workspaceNextChapter()" title="下一章">下一章 →</button>
             </div>
             <div class="workspace-more-actions">
+              <button type="button" onclick="toggleWorkspaceFocus()">⛶ 專注</button>
+              <button type="button" onclick="openGlobalSearch()">⌕ 全書搜尋</button>
               <button type="button" onclick="duplicateWorkspaceChapter()">⧉ 複製</button>
               <button type="button" onclick="exportCurrentChapterTxt()">⬇ 單章 TXT</button>
               <button type="button" onclick="exportNovelTxt()">📚 整本 TXT</button>
@@ -737,8 +739,41 @@
   </section>
 </main>
 
+<div id="globalSearchModal" class="global-search-modal hidden" role="dialog" aria-modal="true">
+  <div class="global-search-backdrop" onclick="closeGlobalSearch()"></div>
+  <section class="global-search-panel">
+    <div class="global-search-head">
+      <div>
+        <b>⌕ 全書搜尋</b>
+        <small>章節、人物、勢力、事件一次搜尋</small>
+      </div>
+      <button type="button" onclick="closeGlobalSearch()">✕</button>
+    </div>
+
+    <div class="global-search-input-wrap">
+      <span>🔍</span>
+      <input id="globalSearchInput" type="search" placeholder="輸入關鍵字，例如：祁玄燼、夜闕樓、初入王府…" />
+    </div>
+
+    <div class="global-search-filters">
+      <button class="active" type="button" data-global-filter="" onclick="setGlobalSearchFilter('')">全部</button>
+      <button type="button" data-global-filter="chapter" onclick="setGlobalSearchFilter('chapter')">章節</button>
+      <button type="button" data-global-filter="character" onclick="setGlobalSearchFilter('character')">人物</button>
+      <button type="button" data-global-filter="faction" onclick="setGlobalSearchFilter('faction')">勢力</button>
+      <button type="button" data-global-filter="timeline" onclick="setGlobalSearchFilter('timeline')">事件</button>
+    </div>
+
+    <div id="globalSearchSummary" class="global-search-summary">輸入關鍵字開始搜尋</div>
+    <div id="globalSearchResults" class="global-search-results"></div>
+  </section>
+</div>
+
+<div id="focusModeExit" class="focus-mode-exit hidden">
+  <button type="button" onclick="toggleWorkspaceFocus()">↙ 離開專注模式</button>
+</div>
+
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v21-chaptertools"></script>
+<script src="app.js?v=20260808-v22-focus-search"></script>
 </body>
 </html>
