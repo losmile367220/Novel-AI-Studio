@@ -35,3 +35,6 @@ button:disabled{
 .settings-copy{min-width:0}.settings-title{display:block;font-weight:900}.settings-preview{display:block;margin-top:4px;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .settings-icon{width:44px;height:44px;border-radius:14px;background:var(--primary-soft);display:grid;place-items:center;font-size:22px}.settings-arrow{color:#aaa;font-size:21px}
 .world-detail-list{grid-template-columns:1fr!important}.world-editor-panel h2{margin:0 0 6px}
+
+/* v1.3 勢力 */
+.faction-editor-panel{margin-bottom:12px}.faction-editor-panel h3{margin:0 0 12px}.faction-editor-panel textarea{min-height:92px}

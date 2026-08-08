@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-world121">
+  <link rel="stylesheet" href="style.css?v=20260808-factions13">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -58,7 +58,7 @@
     <div class="module-grid">
       <button class="module-card active" type="button" onclick="openCharacters()"><span>👥</span><b>人物</b><small id="characterCount">0 位</small></button>
       <button class="module-card active" type="button" onclick="openWorld()"><span>🌍</span><b>世界觀</b><small id="worldStatus">尚未設定</small></button>
-      <button class="module-card disabled" type="button"><span>🏯</span><b>勢力</b><small>即將開放</small></button>
+      <button class="module-card active" type="button" onclick="openFactions()"><span>🏯</span><b>勢力</b><small id="factionCount">0 個</small></button>
       <button class="module-card disabled" type="button"><span>📍</span><b>地點</b><small>即將開放</small></button>
       <button class="module-card disabled" type="button"><span>🎒</span><b>物品</b><small>即將開放</small></button>
       <button class="module-card disabled" type="button"><span>🧩</span><b>伏筆</b><small>即將開放</small></button>
@@ -113,6 +113,26 @@
     </form>
   </section>
 
+
+  <section id="factionsView" class="screen hidden">
+    <div class="characters-tools">
+      <div class="search-wrap"><span>🔍</span><input id="factionSearch" type="search" placeholder="搜尋勢力、類型、領袖、立場"></div>
+      <div id="factionFilters" class="filter-scroll">
+        <button class="filter-chip active" data-faction-type="">全部</button><button class="filter-chip" data-faction-type="皇室／朝廷">皇室</button><button class="filter-chip" data-faction-type="王府">王府</button><button class="filter-chip" data-faction-type="商會">商會</button><button class="filter-chip" data-faction-type="江湖門派">門派</button><button class="filter-chip" data-faction-type="情報／殺手組織">情報</button><button class="filter-chip" data-faction-type="家族／世家">世家</button><button class="filter-chip" data-faction-type="軍隊">軍隊</button><button class="filter-chip" data-faction-type="其他">其他</button>
+      </div>
+    </div>
+    <div id="factionList" class="stack"></div><button class="fab" type="button" onclick="startNewFaction()">＋</button>
+  </section>
+  <section id="factionDetailView" class="screen hidden">
+    <article class="panel character-hero compact-hero"><div id="factionDetailEmoji" class="avatar">🏯</div><div class="hero-copy"><h2 id="factionDetailName">勢力</h2><p id="factionDetailSummary" class="muted"></p><div class="hero-meta"><span id="factionDetailType" class="pill"></span><span id="factionDetailStance" class="soft-meta"></span></div></div></article>
+    <div id="factionDetailMenu" class="settings-list"></div>
+    <div class="bottom-actions"><button class="secondary" type="button" onclick="editFactionFromDetail()">✏️ 編輯勢力</button><button class="danger" type="button" onclick="deleteCurrentFaction()">刪除</button></div>
+  </section>
+  <section id="factionSectionView" class="screen hidden"><div id="factionSectionCards" class="detail-sections"></div><div class="single-bottom"><button class="primary" type="button" onclick="editCurrentFactionSection()">✏️ 編輯這一區</button></div></section>
+  <section id="factionEditorView" class="screen hidden">
+    <form id="factionForm"><input id="factionId" type="hidden"><div id="factionEditorFields"></div></form>
+    <div class="wizard-actions"><button class="secondary" type="button" onclick="cancelFactionEditor()">取消</button><button id="saveFactionBtn" class="primary" type="button" onclick="saveFactionEditor()">💾 儲存勢力</button></div>
+  </section>
   <section id="characterDetailView" class="screen hidden">
     <article class="panel character-hero compact-hero">
       <div id="detailEmoji" class="avatar">👤</div>
@@ -183,7 +203,7 @@
 </main>
 
 <div id="toast" class="toast hidden"></div>
-<script src="config.js?v=20260808-world121"></script>
-<script src="app.js?v=20260808-world121"></script>
+<script src="config.js?v=20260808-factions13"></script>
+<script src="app.js?v=20260808-factions13"></script>
 </body>
 </html>

@@ -11,6 +11,11 @@ let wizardReturn = "characters";
 let worldData = {};
 let currentWorldSection = "overview";
 let worldEditorReturn = "world";
+let factions = [];
+let filteredFactionType = "";
+let currentFaction = null;
+let currentFactionSection = "basic";
+let factionEditorReturn = "factions";
 
 const screens = {
   login: document.getElementById("loginView"),
@@ -22,7 +27,11 @@ const screens = {
   wizard: document.getElementById("characterWizardView"),
   world: document.getElementById("worldView"),
   worldDetail: document.getElementById("worldDetailView"),
-  worldEditor: document.getElementById("worldEditorView")
+  worldEditor: document.getElementById("worldEditorView"),
+  factions: document.getElementById("factionsView"),
+  factionDetail: document.getElementById("factionDetailView"),
+  factionSection: document.getElementById("factionSectionView"),
+  factionEditor: document.getElementById("factionEditorView")
 };
 
 const sectionGroups = {
@@ -155,7 +164,11 @@ function showScreen(name) {
     wizard:[document.getElementById("characterId").value ? "✏️ 編輯人物" : "＋ 新增人物",currentNovel?.["書名"] || ""],
     world:["🌍 世界觀",currentNovel?.["書名"] || ""],
     worldDetail:[worldSectionTitle(currentWorldSection),currentNovel?.["書名"] || ""],
-    worldEditor:["✏️ " + worldSectionTitle(currentWorldSection),currentNovel?.["書名"] || ""]
+    worldEditor:["✏️ " + worldSectionTitle(currentWorldSection),currentNovel?.["書名"] || ""],
+    factions:["🏯 勢力資料庫",currentNovel?.["書名"] || ""],
+    factionDetail:[currentFaction ? `${factionEmoji(currentFaction.type)} ${currentFaction.name}` : "🏯 勢力",currentNovel?.["書名"] || ""],
+    factionSection:[factionSectionGroups[currentFactionSection]?.title || "勢力資料",currentFaction?.name || ""],
+    factionEditor:[document.getElementById("factionId")?.value ? "✏️ 編輯勢力" : "＋ 新增勢力",currentNovel?.["書名"] || ""]
   };
   document.getElementById("pageTitle").textContent = titles[name][0];
   document.getElementById("pageSubtitle").textContent = titles[name][1];
@@ -184,6 +197,7 @@ async function openNovel(novelId) {
     characters = await apiGet("getCharacters", {novelId:currentNovel["ID"]});
     document.getElementById("characterCount").textContent = `${characters.length} 位`;
   } catch (e) { document.getElementById("characterCount").textContent = "讀取失敗"; }
+  try { factions = await apiGet("getFactions", {novelId:currentNovel["ID"]}); document.getElementById("factionCount").textContent = `${factions.length} 個`; } catch(e) { document.getElementById("factionCount").textContent = "讀取失敗"; }
 }
 
 async function openCharacters() {
@@ -451,6 +465,30 @@ worldForm.addEventListener("submit",async e=>{
 });
 worldSearch.addEventListener("input",renderWorldSections);
 
+
+/* v1.3 勢力資料庫 */
+const factionSectionGroups={
+ basic:{title:"📋 基本資料",icon:"📋",fields:[["名稱","name"],["類型","type"],["領袖／負責人","leader"],["所在地","location"],["立場","stance"]]},
+ power:{title:"🏯 勢力與資源",icon:"🏯",fields:[["勢力範圍","scope"],["核心成員","members"],["資源／能力","resources"]]},
+ relation:{title:"🤝 關係網",icon:"🤝",fields:[["盟友","allies"],["敵對勢力","enemies"]]},
+ goal:{title:"🎯 目的與行動",icon:"🎯",fields:[["主要目的","goal"],["目前行動／計畫","plans"]]},
+ secret:{title:"🔒 秘密",icon:"🔒",fields:[["秘密／隱藏設定","secret"]]},
+ notes:{title:"📝 備註",icon:"📝",fields:[["備註","notes"]]}
+};
+function factionEmoji(type){return ({"皇室／朝廷":"👑","王府":"🏯","商會":"💰","江湖門派":"⚔️","情報／殺手組織":"🌑","家族／世家":"🏛️","軍隊":"🛡️"})[type]||"🏯"}
+async function openFactions(){showScreen("factions");factionList.innerHTML='<div class="empty">正在讀取勢力……</div>';try{factions=await apiGet("getFactions",{novelId:currentNovel["ID"]})||[];factionCount.textContent=`${factions.length} 個`;renderFactions()}catch(e){factionList.innerHTML=`<div class="empty">${escapeHtml(e.message)}</div>`}}
+function renderFactions(){const q=factionSearch.value.trim().toLowerCase();const rows=factions.filter(f=>(!filteredFactionType||f.type===filteredFactionType)&&`${f.name||""} ${f.type||""} ${f.leader||""} ${f.stance||""} ${f.location||""}`.toLowerCase().includes(q));factionList.innerHTML=rows.length?rows.map(f=>`<button class="character-card" type="button" onclick="openFactionDetail('${safeAttr(f.id)}')"><div class="character-avatar">${factionEmoji(f.type)}</div><div class="copy"><div class="card-title">${escapeHtml(f.name||"未命名勢力")}</div><div class="card-meta">${escapeHtml(f.type||"未分類")} · ${escapeHtml(f.leader||f.stance||"尚未設定")}</div></div><div class="character-arrow">›</div></button>`).join(""):'<div class="empty">找不到符合條件的勢力。</div>'}
+function openFactionDetail(id){currentFaction=factions.find(f=>f.id===id);if(!currentFaction)return showToast("找不到勢力");factionDetailEmoji.textContent=factionEmoji(currentFaction.type);factionDetailName.textContent=currentFaction.name||"未命名勢力";factionDetailSummary.textContent=currentFaction.leader?`領袖：${currentFaction.leader}`:(currentFaction.location||"尚未設定領袖");factionDetailType.textContent=currentFaction.type||"未分類";factionDetailStance.textContent=currentFaction.stance||"";factionDetailMenu.innerHTML=Object.entries(factionSectionGroups).map(([k,g])=>{const p=g.fields.map(([,x])=>currentFaction[x]).find(Boolean)||"尚未設定";return `<button class="settings-row" type="button" onclick="openFactionSection('${k}')"><span class="settings-icon">${g.icon}</span><span class="settings-copy"><span class="settings-title">${g.title.replace(/^..\\s/,"")}</span><span class="settings-preview">${escapeHtml(p)}</span></span><span class="settings-arrow">›</span></button>`}).join("");showScreen("factionDetail")}
+function openFactionSection(k){currentFactionSection=k;const g=factionSectionGroups[k];factionSectionCards.innerHTML=g.fields.map(([l,x])=>`<article class="detail-card"><h3>${escapeHtml(l)}</h3><p>${escapeHtml(currentFaction[x]||"尚未設定")}</p></article>`).join("");showScreen("factionSection")}
+function startNewFaction(){currentFaction=null;openFactionEditor("basic","factions")}
+function editFactionFromDetail(){openFactionEditor("basic","factionDetail")}
+function editCurrentFactionSection(){openFactionEditor(currentFactionSection,"factionSection")}
+function openFactionEditor(section="basic",ret="factions"){currentFactionSection=section;factionEditorReturn=ret;factionId.value=currentFaction?.id||"";const groups=currentFaction?{[section]:factionSectionGroups[section]}:factionSectionGroups;factionEditorFields.innerHTML=Object.entries(groups).map(([k,g])=>`<section class="panel faction-editor-panel"><h3>${g.title}</h3>${g.fields.map(([label,key])=>{if(key==="type")return `<label>${label}</label><select id="f_${key}">${["皇室／朝廷","王府","商會","江湖門派","情報／殺手組織","家族／世家","軍隊","其他"].map(v=>`<option ${currentFaction?.[key]===v?"selected":""}>${v}</option>`).join("")}</select>`;const val=escapeHtml(currentFaction?.[key]||"");return ["name","leader","location","stance"].includes(key)?`<label>${label}</label><input id="f_${key}" value="${val}">`:`<label>${label}</label><textarea id="f_${key}">${val}</textarea>`}).join("")}</section>`).join("");showScreen("factionEditor")}
+function cancelFactionEditor(){if(factionEditorReturn==="factionDetail"&&currentFaction)return openFactionDetail(currentFaction.id);if(factionEditorReturn==="factionSection"&&currentFaction)return openFactionSection(currentFactionSection);showScreen("factions")}
+async function saveFactionEditor(){const btn=saveFactionBtn;const isEdit=!!factionId.value;const data=isEdit?{...currentFaction}:{};const groups=isEdit?{[currentFactionSection]:factionSectionGroups[currentFactionSection]}:factionSectionGroups;Object.values(groups).forEach(g=>g.fields.forEach(([,k])=>{const el=document.getElementById(`f_${k}`);if(el)data[k]=el.value.trim()}));if(!isEdit&&!data.name)return showToast("請先輸入勢力名稱");btn.disabled=true;btn.textContent="☁️ 儲存中……";try{let saved;if(isEdit){saved=await apiPost("saveFaction",{novelId:currentNovel["ID"],factionId:factionId.value,data});const i=factions.findIndex(f=>f.id===saved.id);if(i>=0)factions[i]=saved}else{saved=await apiPost("createFaction",{novelId:currentNovel["ID"],data});factions.push(saved)}currentFaction=saved;factionCount.textContent=`${factions.length} 個`;renderFactions();showToast("✅ 勢力已儲存");openFactionDetail(saved.id)}catch(e){console.error(e);showToast(e.message||"勢力儲存失敗") }finally{btn.disabled=false;btn.textContent="💾 儲存勢力"}}
+async function deleteCurrentFaction(){if(!currentFaction||!confirm(`確定刪除「${currentFaction.name}」？`))return;const id=currentFaction.id;try{await apiPost("deleteFaction",{novelId:currentNovel["ID"],factionId:id});factions=factions.filter(f=>f.id!==id);currentFaction=null;factionCount.textContent=`${factions.length} 個`;renderFactions();showScreen("factions");showToast("✅ 勢力已刪除")}catch(e){showToast(e.message||"刪除失敗")}}
+factionSearch.addEventListener("input",renderFactions);document.querySelectorAll("#factionFilters .filter-chip").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("#factionFilters .filter-chip").forEach(x=>x.classList.remove("active"));b.classList.add("active");filteredFactionType=b.dataset.factionType||"";renderFactions()}));
+
 document.getElementById("characterSearch").addEventListener("input", renderCharacters);
 document.getElementById("roleFilters").addEventListener("click", event => {
   const button = event.target.closest("[data-role]"); if (!button) return;
@@ -460,6 +498,10 @@ document.getElementById("roleFilters").addEventListener("click", event => {
 });
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.factionEditor.classList.contains("hidden")) return cancelFactionEditor();
+  if (!screens.factionSection.classList.contains("hidden")) return openFactionDetail(currentFaction.id);
+  if (!screens.factionDetail.classList.contains("hidden")) return showScreen("factions");
+  if (!screens.factions.classList.contains("hidden")) return showScreen("novel");
   if (!screens.worldEditor.classList.contains("hidden")) return cancelWorldEditor();
   if (!screens.worldDetail.classList.contains("hidden")) return showScreen("world");
   if (!screens.world.classList.contains("hidden")) return showScreen("novel");
