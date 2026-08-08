@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v24">
+  <link rel="stylesheet" href="style.css?v=20260808-v25-scenes">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -64,6 +64,7 @@
       <button class="module-card active" type="button" onclick="openPlotHooks()"><span>🧩</span><b>伏筆／線索</b><small>埋下 × 發展 × 回收</small></button>
       <button class="module-card disabled" type="button"><span>📖</span><b>章節</b><small>即將開放</small></button>
       <button class="module-card active workspace-module-card" type="button" onclick="openCreativeWorkspace()"><span>📝</span><b>創作工作台</b><small>章節 × 設定 × AI</small></button>
+      <button class="module-card active" type="button" onclick="openScenes()"><span>🎬</span><b>場景／大綱</b><small>章節 × 場景 × POV</small></button>
       <button class="module-card active" type="button" onclick="openChapters()"><span>📖</span><b>章節管理</b><small>正文 × 自動儲存</small></button>
       <button class="module-card active" type="button" onclick="openTimeline()"><span>📜</span><b>劇情時間線</b><small>事件 × 人物 × 勢力</small></button>
       <button class="module-card active" type="button" onclick="openRelationshipGraph()"><span>🕸️</span><b>關係圖譜</b><small>人物 × 勢力</small></button>
@@ -306,6 +307,7 @@
           <button class="active" type="button" data-workspace-tab="characters" onclick="switchWorkspaceTab('characters')">人物</button>
           <button type="button" data-workspace-tab="events" onclick="switchWorkspaceTab('events')">事件</button>
           <button type="button" data-workspace-tab="reference" onclick="switchWorkspaceTab('reference')">速查</button>
+          <button type="button" data-workspace-tab="scenes" onclick="switchWorkspaceTab('scenes')">場景</button>
           <button type="button" data-workspace-tab="hooks" onclick="switchWorkspaceTab('hooks')">伏筆</button>
           <button type="button" data-workspace-tab="ai" onclick="switchWorkspaceTab('ai')">AI</button>
         </div>
@@ -333,6 +335,17 @@
           </div>
           <input id="workspaceReferenceSearch" type="search" placeholder="搜尋人物、勢力…" />
           <div id="workspaceReferenceList" class="workspace-reference-list"></div>
+        </div>
+
+        <div id="workspaceTabScenes" class="workspace-tab-panel hidden">
+          <div class="workspace-inspector-head">
+            <b>🎬 本章場景</b>
+            <small>依順序完成本章節拍</small>
+          </div>
+          <div class="workspace-scene-actions">
+            <button type="button" onclick="openSceneEditor('', workspaceChapter?.id || '')">＋ 新增本章場景</button>
+          </div>
+          <div id="workspaceScenes" class="workspace-scenes"></div>
         </div>
 
         <div id="workspaceTabHooks" class="workspace-tab-panel hidden">
@@ -431,6 +444,32 @@
       </div>
       <textarea id="aiPromptOutput" class="ai-prompt-output" placeholder="選擇任務後，按「產生提示詞」……"></textarea>
     </article>
+  </section>
+
+  <section id="scenesView" class="screen hidden">
+    <div class="chapter-hero">
+      <div>
+        <span class="eyebrow">SCENE OUTLINE</span>
+        <h2>🎬 場景／章節大綱</h2>
+        <p>把每一章拆成可執行的場景卡，寫正文時照著走。</p>
+      </div>
+      <div class="chapter-hero-actions">
+        <button class="secondary small-btn" type="button" onclick="refreshScenes()">↻ 同步</button>
+        <button class="primary small-btn" type="button" onclick="openSceneEditor()">＋ 新增場景</button>
+      </div>
+    </div>
+
+    <div class="scene-toolbar">
+      <select id="sceneChapterFilter"><option value="">全部章節</option></select>
+      <select id="sceneStatusFilter">
+        <option value="">全部狀態</option>
+        <option>規劃中</option><option>待寫</option><option>已寫</option><option>需修改</option>
+      </select>
+      <input id="sceneSearch" type="search" placeholder="搜尋場景、目的、地點、人物…" />
+    </div>
+
+    <div id="sceneStats" class="scene-stats"></div>
+    <div id="sceneList" class="scene-list"></div>
   </section>
 
   <section id="plotHooksView" class="screen hidden">
@@ -761,6 +800,52 @@
   </section>
 </main>
 
+<div id="sceneModal" class="scene-modal hidden" role="dialog" aria-modal="true">
+  <div class="scene-backdrop" onclick="closeSceneEditor()"></div>
+  <section class="scene-panel">
+    <div class="scene-modal-head">
+      <div>
+        <b id="sceneModalTitle">🎬 新增場景</b>
+        <small>建立章節內的場景節拍</small>
+      </div>
+      <button type="button" onclick="closeSceneEditor()">✕</button>
+    </div>
+
+    <div class="scene-form">
+      <div class="scene-form-grid">
+        <label>所屬章節<select id="sceneChapterId"></select></label>
+        <label>場景順序<input id="sceneOrder" type="number" min="1" value="1" /></label>
+        <label class="span-2">場景名稱<input id="sceneTitle" placeholder="例如：若棠第一次踏入攝政王府" /></label>
+
+        <label>POV 人物<select id="scenePovCharacter"><option value="">未指定</option></select></label>
+        <label>狀態<select id="sceneStatus"><option>規劃中</option><option>待寫</option><option>已寫</option><option>需修改</option></select></label>
+
+        <label class="span-2">地點<input id="sceneLocation" placeholder="例如：攝政王府・前院" /></label>
+        <label class="span-2">場景目的<textarea id="scenePurpose" rows="3" placeholder="這一場為什麼存在？要推進什麼？"></textarea></label>
+        <label class="span-2">場景摘要<textarea id="sceneSummary" rows="5" placeholder="這一場會發生什麼？"></textarea></label>
+
+        <fieldset class="scene-link-box">
+          <legend>👤 出場人物</legend>
+          <div id="sceneCharacterChecks" class="scene-checks"></div>
+        </fieldset>
+        <fieldset class="scene-link-box">
+          <legend>🧩 關聯伏筆</legend>
+          <div id="sceneHookChecks" class="scene-checks"></div>
+        </fieldset>
+
+        <label class="span-2">寫作備註<textarea id="sceneNotes" rows="3" placeholder="情緒、節奏、必須出現的台詞、鏡頭感…"></textarea></label>
+      </div>
+    </div>
+
+    <div class="scene-modal-actions">
+      <button id="sceneDeleteBtn" class="danger-lite hidden" type="button" onclick="deleteCurrentScene()">🗑 刪除</button>
+      <div></div>
+      <button class="secondary" type="button" onclick="closeSceneEditor()">取消</button>
+      <button class="primary" type="button" onclick="saveCurrentScene()">💾 儲存場景</button>
+    </div>
+  </section>
+</div>
+
 <div id="plotHookModal" class="plot-hook-modal hidden" role="dialog" aria-modal="true">
   <div class="plot-hook-backdrop" onclick="closePlotHookEditor()"></div>
   <section class="plot-hook-panel">
@@ -875,6 +960,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v241-plotbackfix"></script>
+<script src="app.js?v=20260808-v25-scenes"></script>
 </body>
 </html>

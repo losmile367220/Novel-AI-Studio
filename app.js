@@ -18,6 +18,8 @@ let currentFactionSection = "basic";
 let factionEditorReturn = "factions";
 let relations = [];
 let relationReturn = "detail";
+let currentScene = null;
+let scenes = [];
 let currentPlotHook=null;
 let plotHooks=[];
 let selectedChapterSnapshotId = "";
@@ -63,7 +65,8 @@ const screens = {
   chapterEditor: document.getElementById("chapterEditorView"),
   aiWriter: document.getElementById("aiWriterView"),
   creativeWorkspace: document.getElementById("creativeWorkspaceView"),
-  plotHooks: document.getElementById("plotHooksView")
+  plotHooks: document.getElementById("plotHooksView"),
+  scenes: document.getElementById("scenesView")
 };
 
 const sectionGroups = {
@@ -210,7 +213,8 @@ function showScreen(name) {
     chapterEditor:["✍️ 章節編輯器",currentNovel?.["書名"] || ""],
     aiWriter:["🤖 AI 寫作助手",currentNovel?.["書名"] || ""],
     creativeWorkspace:["📝 創作工作台",currentNovel?.["書名"] || ""],
-    plotHooks:["🧩 伏筆／線索",currentNovel?.["書名"] || ""]
+    plotHooks:["🧩 伏筆／線索",currentNovel?.["書名"] || ""],
+    scenes:["🎬 場景／大綱",currentNovel?.["書名"] || ""]
   };
   document.getElementById("pageTitle").textContent = titles[name][0];
   document.getElementById("pageSubtitle").textContent = titles[name][1];
@@ -543,6 +547,263 @@ document.getElementById("roleFilters").addEventListener("click", event => {
   button.classList.add("active"); renderCharacters();
 });
 
+
+/* =========================================================
+ * v2.5 Scene Outline
+ * scenes.json
+ * =======================================================*/
+async function loadScenesFromCloud(){
+  if(!currentNovel?.["ID"]) return [];
+  try{
+    scenes = await apiGet("getScenes",{novelId:currentNovel["ID"]}) || [];
+  }catch(e){
+    console.warn("scenes load failed", e);
+    scenes = [];
+  }
+  return scenes;
+}
+
+async function openScenes(){
+  showScreen("scenes");
+  await Promise.allSettled([loadScenesFromCloud(), loadPlotHooksFromCloud()]);
+  fillSceneChapterFilter();
+  renderScenes();
+}
+
+async function refreshScenes(){
+  await loadScenesFromCloud();
+  renderScenes();
+  renderWorkspaceScenes();
+  showToast("✅ 場景資料已同步");
+}
+
+function fillSceneChapterFilter(){
+  const el = document.getElementById("sceneChapterFilter");
+  if(!el) return;
+  const current = el.value || "";
+  el.innerHTML = '<option value="">全部章節</option>' + sortedChapters().map(ch =>
+    `<option value="${safeAttr(ch.id)}">第 ${Number(ch.number)||"?"} 章｜${escapeHtml(ch.title||"未命名")}</option>`
+  ).join("");
+  el.value = current;
+}
+
+function sceneChapterLabel(id){
+  const ch = chapters.find(x=>x.id===id);
+  return ch ? `第 ${ch.number} 章｜${ch.title||"未命名"}` : "未指定章節";
+}
+
+function scenePovName(id){
+  const c = characterById(id);
+  return c ? c.name : "未指定 POV";
+}
+
+function renderScenes(){
+  fillSceneChapterFilter();
+
+  const chapterId = document.getElementById("sceneChapterFilter")?.value || "";
+  const status = document.getElementById("sceneStatusFilter")?.value || "";
+  const q = (document.getElementById("sceneSearch")?.value || "").trim().toLowerCase();
+
+  const filtered = scenes
+    .filter(s => !chapterId || s.chapterId === chapterId)
+    .filter(s => !status || s.status === status)
+    .filter(s => {
+      if(!q) return true;
+      const people = (s.characterIds||[]).map(id=>characterById(id)?.name||"");
+      const hooks = (s.plotHookIds||[]).map(id=>plotHooks.find(h=>h.id===id)?.name||"");
+      return [s.title,s.location,s.purpose,s.summary,s.notes,scenePovName(s.povCharacterId),...people,...hooks]
+        .join(" ").toLowerCase().includes(q);
+    })
+    .sort((a,b)=>{
+      const ca = chapters.find(x=>x.id===a.chapterId);
+      const cb = chapters.find(x=>x.id===b.chapterId);
+      const na = Number(ca?.number)||9999, nb = Number(cb?.number)||9999;
+      return na!==nb ? na-nb : (Number(a.order)||0)-(Number(b.order)||0);
+    });
+
+  const total = scenes.length;
+  const planned = scenes.filter(s=>s.status==="規劃中").length;
+  const todo = scenes.filter(s=>s.status==="待寫").length;
+  const done = scenes.filter(s=>s.status==="已寫").length;
+
+  document.getElementById("sceneStats").innerHTML = `
+    <div><b>${total}</b><small>全部場景</small></div>
+    <div><b>${planned}</b><small>🧠 規劃中</small></div>
+    <div><b>${todo}</b><small>✍️ 待寫</small></div>
+    <div><b>${done}</b><small>✅ 已寫</small></div>`;
+
+  const box = document.getElementById("sceneList");
+  box.innerHTML = filtered.length ? filtered.map(s=>{
+    const people = (s.characterIds||[]).map(id=>characterById(id)).filter(Boolean);
+    return `<article class="scene-card" onclick="openSceneEditor('${safeAttr(s.id)}')">
+      <div class="scene-card-order">#${Number(s.order)||1}</div>
+      <div class="scene-card-copy">
+        <small>${escapeHtml(sceneChapterLabel(s.chapterId))}</small>
+        <h3>${escapeHtml(s.title||"未命名場景")}</h3>
+        <div class="scene-card-meta">
+          <span>🎥 ${escapeHtml(scenePovName(s.povCharacterId))}</span>
+          ${s.location?`<span>📍 ${escapeHtml(s.location)}</span>`:""}
+          <span>${escapeHtml(s.status||"規劃中")}</span>
+        </div>
+        <p>${escapeHtml(s.summary||s.purpose||"尚未填寫場景摘要")}</p>
+        ${people.length?`<div class="scene-tags">${people.map(c=>`<span>${escapeHtml(c.name)}</span>`).join("")}</div>`:""}
+      </div>
+    </article>`;
+  }).join("") : '<div class="scene-empty">目前沒有符合的場景。</div>';
+}
+
+function fillSceneEditorSelects(scene){
+  const chapterSelect = document.getElementById("sceneChapterId");
+  chapterSelect.innerHTML = sortedChapters().map(ch =>
+    `<option value="${safeAttr(ch.id)}">第 ${Number(ch.number)||"?"} 章｜${escapeHtml(ch.title||"未命名")}</option>`
+  ).join("");
+  chapterSelect.value = scene.chapterId || sortedChapters()[0]?.id || "";
+
+  const pov = document.getElementById("scenePovCharacter");
+  pov.innerHTML = '<option value="">未指定</option>' + characters.map(c =>
+    `<option value="${safeAttr(c.id)}">${escapeHtml(c.name||"未命名")}｜${escapeHtml(c.role||"人物")}</option>`
+  ).join("");
+  pov.value = scene.povCharacterId || "";
+}
+
+function openSceneEditor(id="", chapterId=""){
+  currentScene = id ? scenes.find(x=>x.id===id)||null : null;
+
+  const scene = currentScene || {
+    chapterId:chapterId || workspaceChapter?.id || sortedChapters()[0]?.id || "",
+    order:1,title:"",povCharacterId:"",status:"規劃中",location:"",
+    purpose:"",summary:"",notes:"",characterIds:[],plotHookIds:[]
+  };
+
+  document.getElementById("sceneModalTitle").textContent = currentScene ? "🎬 編輯場景" : "🎬 新增場景";
+  document.getElementById("sceneDeleteBtn").classList.toggle("hidden", !currentScene);
+
+  fillSceneEditorSelects(scene);
+
+  document.getElementById("sceneOrder").value = scene.order || 1;
+  document.getElementById("sceneTitle").value = scene.title || "";
+  document.getElementById("sceneStatus").value = scene.status || "規劃中";
+  document.getElementById("sceneLocation").value = scene.location || "";
+  document.getElementById("scenePurpose").value = scene.purpose || "";
+  document.getElementById("sceneSummary").value = scene.summary || "";
+  document.getElementById("sceneNotes").value = scene.notes || "";
+
+  const cs = new Set(scene.characterIds||[]);
+  const hs = new Set(scene.plotHookIds||[]);
+
+  document.getElementById("sceneCharacterChecks").innerHTML = characters.length
+    ? characters.map(c=>`<label><input type="checkbox" value="${safeAttr(c.id)}" ${cs.has(c.id)?"checked":""}>${escapeHtml(c.name||"未命名")}</label>`).join("")
+    : "<small>尚未建立人物</small>";
+
+  document.getElementById("sceneHookChecks").innerHTML = plotHooks.length
+    ? plotHooks.map(h=>`<label><input type="checkbox" value="${safeAttr(h.id)}" ${hs.has(h.id)?"checked":""}>${escapeHtml(h.name||"未命名伏筆")}</label>`).join("")
+    : "<small>尚未建立伏筆</small>";
+
+  document.getElementById("sceneModal").classList.remove("hidden");
+}
+
+function closeSceneEditor(){
+  document.getElementById("sceneModal").classList.add("hidden");
+  currentScene = null;
+}
+
+function sceneChecked(selector){
+  return [...document.querySelectorAll(selector+" input:checked")].map(x=>x.value);
+}
+
+async function saveCurrentScene(){
+  const title = document.getElementById("sceneTitle").value.trim();
+  if(!title) return showToast("請輸入場景名稱");
+
+  const data = {
+    chapterId:document.getElementById("sceneChapterId").value,
+    order:Number(document.getElementById("sceneOrder").value)||1,
+    title,
+    povCharacterId:document.getElementById("scenePovCharacter").value,
+    status:document.getElementById("sceneStatus").value,
+    location:document.getElementById("sceneLocation").value.trim(),
+    purpose:document.getElementById("scenePurpose").value.trim(),
+    summary:document.getElementById("sceneSummary").value.trim(),
+    notes:document.getElementById("sceneNotes").value.trim(),
+    characterIds:sceneChecked("#sceneCharacterChecks"),
+    plotHookIds:sceneChecked("#sceneHookChecks")
+  };
+
+  try{
+    const saved = await apiPost("saveScene",{
+      novelId:currentNovel["ID"],
+      sceneId:currentScene?.id || "",
+      data
+    });
+
+    const i = scenes.findIndex(x=>x.id===saved.id);
+    if(i>=0) scenes[i]=saved; else scenes.push(saved);
+
+    closeSceneEditor();
+    renderScenes();
+    renderWorkspaceScenes();
+    showToast("✅ 場景已儲存");
+  }catch(e){
+    console.error(e);
+    showToast(e.message||"場景儲存失敗");
+  }
+}
+
+async function deleteCurrentScene(){
+  if(!currentScene) return;
+  if(!confirm(`確定刪除「${currentScene.title||"這個場景"}」？`)) return;
+
+  try{
+    await apiPost("deleteScene",{
+      novelId:currentNovel["ID"],
+      sceneId:currentScene.id
+    });
+
+    scenes = scenes.filter(x=>x.id!==currentScene.id);
+    closeSceneEditor();
+    renderScenes();
+    renderWorkspaceScenes();
+    showToast("✅ 場景已刪除");
+  }catch(e){
+    console.error(e);
+    showToast(e.message||"刪除場景失敗");
+  }
+}
+
+function renderWorkspaceScenes(){
+  const box = document.getElementById("workspaceScenes");
+  if(!box || !workspaceChapter) return;
+
+  const rows = scenes
+    .filter(s=>s.chapterId===workspaceChapter.id)
+    .sort((a,b)=>(Number(a.order)||0)-(Number(b.order)||0));
+
+  box.innerHTML = rows.length ? rows.map(s=>`
+    <button type="button" class="workspace-scene-card" onclick="openSceneEditor('${safeAttr(s.id)}')">
+      <span>#${Number(s.order)||1} · ${escapeHtml(s.status||"規劃中")}</span>
+      <b>${escapeHtml(s.title||"未命名場景")}</b>
+      <small>${s.povCharacterId?`🎥 ${escapeHtml(scenePovName(s.povCharacterId))}`:"未指定 POV"}${s.location?` · 📍 ${escapeHtml(s.location)}`:""}</small>
+      <p>${escapeHtml(s.purpose||s.summary||"")}</p>
+    </button>
+  `).join("") : '<div class="workspace-mini-empty">本章尚未建立場景。</div>';
+}
+
+function buildAISceneContext(){
+  const rows = scenes.filter(s=>!workspaceChapter || s.chapterId===workspaceChapter.id)
+    .sort((a,b)=>(Number(a.order)||0)-(Number(b.order)||0));
+
+  if(!rows.length) return "本章尚未建立場景大綱。";
+
+  return rows.map(s=>`- 場景 ${s.order}｜${s.title}｜${s.status}
+  POV：${scenePovName(s.povCharacterId)}
+  地點：${s.location||"未指定"}
+  目的：${s.purpose||"未填"}
+  摘要：${s.summary||"未填"}`).join("\n");
+}
+
+document.getElementById("sceneSearch").addEventListener("input", renderScenes);
+document.getElementById("sceneStatusFilter").addEventListener("change", renderScenes);
+document.getElementById("sceneChapterFilter").addEventListener("change", renderScenes);
 
 /* v2.4 Plot Hooks */
 const PLOT_HOOK_STATUS={"未埋下":"⚪","已埋下":"🟡","發展中":"🟠","已回收":"🟢","棄用":"⚫"};
@@ -1228,7 +1489,8 @@ async function openCreativeWorkspace(){
     const results=await Promise.allSettled([
       apiGet("getChapters",{novelId:currentNovel["ID"]}),
       loadTimelineFromCloud({allowMigration:false}),
-      loadPlotHooksFromCloud()
+      loadPlotHooksFromCloud(),
+      loadScenesFromCloud()
     ]);
     if(results[0].status==="fulfilled") chapters=results[0].value||[];
     chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
@@ -1291,6 +1553,7 @@ function fillWorkspaceEditor(ch){
     <label class="workspace-check"><input type="checkbox" value="${safeAttr(e.id)}" ${es.has(e.id)?"checked":""}>
     <span><b>${timelineTypeEmoji(e.type)} ${escapeHtml(e.title||"未命名事件")}</b><small>${escapeHtml(e.storyTime||e.status||"事件")}</small></span></label>`).join(""):'<div class="workspace-mini-empty">尚未建立事件</div>';
   updateWorkspaceStats();
+  renderWorkspaceScenes();
   renderWorkspacePlotHooks();
   setWorkspaceSaveState("☁️ 已同步");
 }
@@ -1338,7 +1601,7 @@ async function saveWorkspaceChapter(showMessage=false){
 }
 
 function switchWorkspaceTab(tab){
-  ["characters","events","reference","hooks","ai"].forEach(name=>{
+  ["characters","events","reference","scenes","hooks","ai"].forEach(name=>{
     document.getElementById("workspaceTab"+name[0].toUpperCase()+name.slice(1)).classList.toggle("hidden",name!==tab);
   });
   document.querySelectorAll("[data-workspace-tab]").forEach(b=>b.classList.toggle("active",b.dataset.workspaceTab===tab));
@@ -1389,6 +1652,9 @@ ${buildAITimelineContext()}
 
 【未回收伏筆／線索】
 ${buildAIPlotHookContext()}
+
+【本章場景大綱】
+${buildAISceneContext()}
 
 【目前章節】
 第 ${document.getElementById("workspaceChapterNumber").value} 章｜${document.getElementById("workspaceChapterTitle").value||"未命名"}
@@ -2777,6 +3043,7 @@ function jumpToCharacter(id){
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.scenes.classList.contains("hidden")) return showScreen("novel");
   if (!screens.plotHooks.classList.contains("hidden")) return showScreen("novel");
   if (!screens.creativeWorkspace.classList.contains("hidden")) { if(workspaceDirty) saveWorkspaceChapter(false); return showScreen("novel"); }
   if (!screens.aiWriter.classList.contains("hidden")) return showScreen("novel");
