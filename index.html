@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v26-locations">
+  <link rel="stylesheet" href="style.css?v=20260808-v27-items">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -60,7 +60,7 @@
       <button class="module-card active" type="button" onclick="openWorld()"><span>🌍</span><b>世界觀</b><small id="worldStatus">尚未設定</small></button>
       <button class="module-card active" type="button" onclick="openFactions()"><span>🏯</span><b>勢力</b><small id="factionCount">0 個</small></button>
       <button class="module-card active" type="button" onclick="openLocations()"><span>📍</span><b>地點</b><small id="locationCount">0 個</small></button>
-      <button class="module-card disabled" type="button"><span>🎒</span><b>物品</b><small>即將開放</small></button>
+      <button class="module-card active" type="button" onclick="openItems()"><span>🎒</span><b>物品</b><small id="itemCount">0 個</small></button>
       <button class="module-card active" type="button" onclick="openPlotHooks()"><span>🧩</span><b>伏筆／線索</b><small>埋下 × 發展 × 回收</small></button>
       <button class="module-card disabled" type="button"><span>📖</span><b>章節</b><small>即將開放</small></button>
       <button class="module-card active workspace-module-card" type="button" onclick="openCreativeWorkspace()"><span>📝</span><b>創作工作台</b><small>章節 × 設定 × AI</small></button>
@@ -119,6 +119,63 @@
   </section>
 
 
+
+  <section id="itemsView" class="screen hidden">
+    <div class="characters-tools">
+      <div class="search-wrap"><span>🔍</span><input id="itemSearch" type="search" placeholder="搜尋物品、持有人、勢力、地點、伏筆"></div>
+      <div id="itemFilters" class="filter-scroll">
+        <button class="filter-chip active" data-item-type="">全部</button>
+        <button class="filter-chip" data-item-type="武器">武器</button>
+        <button class="filter-chip" data-item-type="藥物／毒物">藥物</button>
+        <button class="filter-chip" data-item-type="信物／飾品">信物</button>
+        <button class="filter-chip" data-item-type="書信／文書">文書</button>
+        <button class="filter-chip" data-item-type="權力象徵">權力</button>
+        <button class="filter-chip" data-item-type="寶物／奇物">寶物</button>
+        <button class="filter-chip" data-item-type="日常物品">日常</button>
+        <button class="filter-chip" data-item-type="其他">其他</button>
+      </div>
+    </div>
+
+    <div id="itemList" class="stack"></div>
+    <button class="fab" type="button" onclick="startNewItem()">＋</button>
+  </section>
+
+  <section id="itemDetailView" class="screen hidden">
+    <article class="panel character-hero compact-hero">
+      <div id="itemDetailEmoji" class="avatar">🎒</div>
+      <div class="hero-copy">
+        <h2 id="itemDetailName">物品</h2>
+        <p id="itemDetailSummary" class="muted"></p>
+        <div class="hero-meta">
+          <span id="itemDetailType" class="pill"></span>
+          <span id="itemDetailOwner" class="soft-meta"></span>
+        </div>
+      </div>
+    </article>
+
+    <div id="itemDetailMenu" class="settings-list"></div>
+
+    <div class="bottom-actions">
+      <button class="secondary" type="button" onclick="editItemFromDetail()">✏️ 編輯物品</button>
+      <button class="danger" type="button" onclick="deleteCurrentItem()">刪除</button>
+    </div>
+  </section>
+
+  <section id="itemSectionView" class="screen hidden">
+    <div id="itemSectionCards" class="detail-sections"></div>
+    <div class="single-bottom"><button class="primary" type="button" onclick="editCurrentItemSection()">✏️ 編輯這一區</button></div>
+  </section>
+
+  <section id="itemEditorView" class="screen hidden">
+    <form id="itemForm">
+      <input id="itemId" type="hidden">
+      <div id="itemEditorFields"></div>
+    </form>
+    <div class="wizard-actions">
+      <button class="secondary" type="button" onclick="cancelItemEditor()">取消</button>
+      <button id="saveItemBtn" class="primary" type="button" onclick="saveItemEditor()">💾 儲存物品</button>
+    </div>
+  </section>
 
   <section id="locationsView" class="screen hidden">
     <div class="characters-tools">
@@ -1004,6 +1061,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v26-locations"></script>
+<script src="app.js?v=20260808-v27-items"></script>
 </body>
 </html>
