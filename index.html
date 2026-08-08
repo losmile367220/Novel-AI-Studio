@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v19-ai">
+  <link rel="stylesheet" href="style.css?v=20260808-v20-workspace">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -63,6 +63,7 @@
       <button class="module-card disabled" type="button"><span>🎒</span><b>物品</b><small>即將開放</small></button>
       <button class="module-card disabled" type="button"><span>🧩</span><b>伏筆</b><small>即將開放</small></button>
       <button class="module-card disabled" type="button"><span>📖</span><b>章節</b><small>即將開放</small></button>
+      <button class="module-card active workspace-module-card" type="button" onclick="openCreativeWorkspace()"><span>📝</span><b>創作工作台</b><small>章節 × 設定 × AI</small></button>
       <button class="module-card active" type="button" onclick="openChapters()"><span>📖</span><b>章節管理</b><small>正文 × 自動儲存</small></button>
       <button class="module-card active" type="button" onclick="openTimeline()"><span>📜</span><b>劇情時間線</b><small>事件 × 人物 × 勢力</small></button>
       <button class="module-card active" type="button" onclick="openRelationshipGraph()"><span>🕸️</span><b>關係圖譜</b><small>人物 × 勢力</small></button>
@@ -226,6 +227,123 @@
     <div class="wizard-actions">
       <button class="secondary" type="button" onclick="cancelCharacterLinkEditor()">取消</button>
       <button id="saveCharacterLinkBtn" class="primary" type="button" onclick="saveCharacterLinkEditor()">💾 儲存關係</button>
+    </div>
+  </section>
+
+  <section id="creativeWorkspaceView" class="screen hidden">
+    <div class="workspace-shell">
+      <aside class="workspace-sidebar">
+        <div class="workspace-side-head">
+          <div>
+            <b>📚 章節</b>
+            <small id="workspaceChapterCount">0 章</small>
+          </div>
+          <button type="button" onclick="workspaceCreateChapter()" title="新增章節">＋</button>
+        </div>
+        <div class="workspace-search">
+          <input id="workspaceChapterSearch" type="search" placeholder="搜尋章節…" />
+        </div>
+        <div id="workspaceChapterList" class="workspace-chapter-list"></div>
+      </aside>
+
+      <main class="workspace-editor">
+        <div id="workspaceEmpty" class="workspace-empty">
+          <span>📝</span>
+          <b>選擇一個章節開始創作</b>
+          <small>左側可以選章節，或建立新的章節。</small>
+          <button class="primary" type="button" onclick="workspaceCreateChapter()">＋ 建立新章節</button>
+        </div>
+
+        <div id="workspaceEditorBody" class="hidden">
+          <div class="workspace-editor-head">
+            <div class="workspace-chapter-no">
+              <span>第</span>
+              <input id="workspaceChapterNumber" type="number" min="1" />
+              <span>章</span>
+            </div>
+            <input id="workspaceChapterTitle" class="workspace-title-input" placeholder="章節名稱" />
+            <select id="workspaceChapterStatus">
+              <option>構思</option><option>草稿</option><option>修稿</option><option>完成</option>
+            </select>
+          </div>
+
+          <div class="workspace-editor-toolbar">
+            <span id="workspaceSaveState">☁️ 已同步</span>
+            <div>
+              <span id="workspaceCharCount">0 字</span>
+              <span id="workspaceParagraphCount">0 段</span>
+            </div>
+          </div>
+
+          <textarea id="workspaceContent" class="workspace-content" placeholder="故事從這裡繼續……"></textarea>
+
+          <div class="workspace-notes">
+            <label>🗒️ 本章備註</label>
+            <textarea id="workspaceNotes" rows="3" placeholder="伏筆、修改提醒、下一章銜接……"></textarea>
+          </div>
+        </div>
+      </main>
+
+      <aside class="workspace-inspector">
+        <div class="workspace-tabs">
+          <button class="active" type="button" data-workspace-tab="characters" onclick="switchWorkspaceTab('characters')">人物</button>
+          <button type="button" data-workspace-tab="events" onclick="switchWorkspaceTab('events')">事件</button>
+          <button type="button" data-workspace-tab="reference" onclick="switchWorkspaceTab('reference')">速查</button>
+          <button type="button" data-workspace-tab="ai" onclick="switchWorkspaceTab('ai')">AI</button>
+        </div>
+
+        <div id="workspaceTabCharacters" class="workspace-tab-panel">
+          <div class="workspace-inspector-head">
+            <b>👤 本章人物</b>
+            <small>勾選後會跟章節一起儲存</small>
+          </div>
+          <div id="workspaceCharacterChecks" class="workspace-check-list"></div>
+        </div>
+
+        <div id="workspaceTabEvents" class="workspace-tab-panel hidden">
+          <div class="workspace-inspector-head">
+            <b>📜 關聯事件</b>
+            <small>把時間線事件掛到本章</small>
+          </div>
+          <div id="workspaceEventChecks" class="workspace-check-list"></div>
+        </div>
+
+        <div id="workspaceTabReference" class="workspace-tab-panel hidden">
+          <div class="workspace-inspector-head">
+            <b>🔎 設定速查</b>
+            <small>寫作時不用離開正文</small>
+          </div>
+          <input id="workspaceReferenceSearch" type="search" placeholder="搜尋人物、勢力…" />
+          <div id="workspaceReferenceList" class="workspace-reference-list"></div>
+        </div>
+
+        <div id="workspaceTabAi" class="workspace-tab-panel hidden">
+          <div class="workspace-inspector-head">
+            <b>🤖 AI 快捷助手</b>
+            <small>沿用 v1.9 提示詞引擎</small>
+          </div>
+          <div class="workspace-ai-actions">
+            <button type="button" onclick="workspaceAI('continue')">✍️ 續寫</button>
+            <button type="button" onclick="workspaceAI('polish')">✨ 潤飾</button>
+            <button type="button" onclick="workspaceAI('dialogue')">💬 對話</button>
+            <button type="button" onclick="workspaceAI('logic')">🧠 邏輯檢查</button>
+          </div>
+          <label>額外要求</label>
+          <textarea id="workspaceAIInstruction" rows="4" placeholder="例如：這段氣氛要更曖昧，但不要直接告白。"></textarea>
+          <button class="primary workspace-ai-generate" type="button" onclick="generateWorkspaceAIPrompt()">✨ 產生提示詞</button>
+          <textarea id="workspaceAIPrompt" class="workspace-ai-prompt" rows="10" placeholder="AI 提示詞會出現在這裡…"></textarea>
+          <div class="workspace-ai-bottom">
+            <button class="secondary" type="button" onclick="copyWorkspaceAIPrompt()">複製</button>
+            <button class="primary" type="button" onclick="openWorkspaceMetaAI()">Meta AI ↗</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="workspace-mobile-nav">
+      <button type="button" onclick="toggleWorkspaceMobilePanel('chapters')">📚<span>章節</span></button>
+      <button class="active" type="button" onclick="toggleWorkspaceMobilePanel('editor')">✍️<span>正文</span></button>
+      <button type="button" onclick="toggleWorkspaceMobilePanel('inspector')">🧠<span>資料</span></button>
     </div>
   </section>
 
@@ -607,6 +725,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v19-ai"></script>
+<script src="app.js?v=20260808-v20-workspace"></script>
 </body>
 </html>

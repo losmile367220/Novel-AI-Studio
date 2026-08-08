@@ -18,6 +18,10 @@ let currentFactionSection = "basic";
 let factionEditorReturn = "factions";
 let relations = [];
 let relationReturn = "detail";
+let workspaceChapter = null;
+let workspaceSaveTimer = null;
+let workspaceDirty = false;
+let workspaceAITask = "continue";
 let aiSelectedTask = "continue";
 let chapters = [];
 let currentChapter = null;
@@ -51,7 +55,8 @@ const screens = {
   timelineEditor: document.getElementById("timelineEditorView"),
   chapters: document.getElementById("chaptersView"),
   chapterEditor: document.getElementById("chapterEditorView"),
-  aiWriter: document.getElementById("aiWriterView")
+  aiWriter: document.getElementById("aiWriterView"),
+  creativeWorkspace: document.getElementById("creativeWorkspaceView")
 };
 
 const sectionGroups = {
@@ -196,7 +201,8 @@ function showScreen(name) {
     timelineEditor:["✍️ 編輯事件",currentNovel?.["書名"] || ""],
     chapters:["📖 章節管理",currentNovel?.["書名"] || ""],
     chapterEditor:["✍️ 章節編輯器",currentNovel?.["書名"] || ""],
-    aiWriter:["🤖 AI 寫作助手",currentNovel?.["書名"] || ""]
+    aiWriter:["🤖 AI 寫作助手",currentNovel?.["書名"] || ""],
+    creativeWorkspace:["📝 創作工作台",currentNovel?.["書名"] || ""]
   };
   document.getElementById("pageTitle").textContent = titles[name][0];
   document.getElementById("pageSubtitle").textContent = titles[name][1];
@@ -529,6 +535,224 @@ document.getElementById("roleFilters").addEventListener("click", event => {
   button.classList.add("active"); renderCharacters();
 });
 
+
+/* =========================================================
+ * v2.0 Creative Workspace
+ * 三欄整合：章節 / 正文 / 人物事件設定AI
+ * =======================================================*/
+async function openCreativeWorkspace(){
+  showScreen("creativeWorkspace");
+  workspaceChapter=null;
+  setWorkspaceEditorVisible(false);
+  try{
+    const results=await Promise.allSettled([
+      apiGet("getChapters",{novelId:currentNovel["ID"]}),
+      loadTimelineFromCloud({allowMigration:false})
+    ]);
+    if(results[0].status==="fulfilled") chapters=results[0].value||[];
+    chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
+  }catch(e){ console.warn(e); }
+  renderWorkspaceChapterList();
+  renderWorkspaceReference();
+  toggleWorkspaceMobilePanel("editor");
+}
+
+function renderWorkspaceChapterList(){
+  const q=(document.getElementById("workspaceChapterSearch")?.value||"").trim().toLowerCase();
+  const rows=chapters.filter(ch=>!q||[ch.title,ch.content,ch.status].join(" ").toLowerCase().includes(q));
+  document.getElementById("workspaceChapterCount").textContent=`${chapters.length} 章`;
+  const box=document.getElementById("workspaceChapterList");
+  box.innerHTML=rows.length?rows.map(ch=>`
+    <button type="button" class="workspace-chapter-item ${workspaceChapter?.id===ch.id?"active":""}" onclick="selectWorkspaceChapter('${safeAttr(ch.id)}')">
+      <span>第 ${Number(ch.number)||"?"} 章</span>
+      <b>${escapeHtml(ch.title||"未命名章節")}</b>
+      <small>${escapeHtml(ch.status||"草稿")} · ${chapterCharCount(ch.content).toLocaleString()} 字</small>
+    </button>`).join(""):'<div class="workspace-mini-empty">沒有章節</div>';
+}
+
+async function workspaceCreateChapter(){
+  if(workspaceDirty) await saveWorkspaceChapter(false);
+  const next=chapters.length?Math.max(...chapters.map(c=>Number(c.number)||0))+1:1;
+  workspaceChapter={id:"",number:next,title:"",status:"草稿",content:"",notes:"",characterIds:[],eventIds:[]};
+  fillWorkspaceEditor(workspaceChapter);
+  setWorkspaceEditorVisible(true);
+  toggleWorkspaceMobilePanel("editor");
+}
+
+async function selectWorkspaceChapter(id){
+  if(workspaceDirty) await saveWorkspaceChapter(false);
+  const ch=chapters.find(x=>x.id===id);
+  if(!ch)return;
+  workspaceChapter={...ch};
+  fillWorkspaceEditor(workspaceChapter);
+  setWorkspaceEditorVisible(true);
+  renderWorkspaceChapterList();
+  if(window.innerWidth<900) toggleWorkspaceMobilePanel("editor");
+}
+
+function setWorkspaceEditorVisible(show){
+  document.getElementById("workspaceEmpty").classList.toggle("hidden",show);
+  document.getElementById("workspaceEditorBody").classList.toggle("hidden",!show);
+}
+
+function fillWorkspaceEditor(ch){
+  workspaceDirty=false;
+  document.getElementById("workspaceChapterNumber").value=ch.number||1;
+  document.getElementById("workspaceChapterTitle").value=ch.title||"";
+  document.getElementById("workspaceChapterStatus").value=ch.status||"草稿";
+  document.getElementById("workspaceContent").value=ch.content||"";
+  document.getElementById("workspaceNotes").value=ch.notes||"";
+  const cs=new Set(ch.characterIds||[]),es=new Set(ch.eventIds||[]);
+  document.getElementById("workspaceCharacterChecks").innerHTML=characters.length?characters.map(c=>`
+    <label class="workspace-check"><input type="checkbox" value="${safeAttr(c.id)}" ${cs.has(c.id)?"checked":""}>
+    <span><b>${emojiForRole(c.role)} ${escapeHtml(c.name||"未命名")}</b><small>${escapeHtml(c.role||c.identity||"人物")}</small></span></label>`).join(""):'<div class="workspace-mini-empty">尚未建立人物</div>';
+  document.getElementById("workspaceEventChecks").innerHTML=timelineEvents.length?timelineEvents.map(e=>`
+    <label class="workspace-check"><input type="checkbox" value="${safeAttr(e.id)}" ${es.has(e.id)?"checked":""}>
+    <span><b>${timelineTypeEmoji(e.type)} ${escapeHtml(e.title||"未命名事件")}</b><small>${escapeHtml(e.storyTime||e.status||"事件")}</small></span></label>`).join(""):'<div class="workspace-mini-empty">尚未建立事件</div>';
+  updateWorkspaceStats();
+  setWorkspaceSaveState("☁️ 已同步");
+}
+
+function updateWorkspaceStats(){
+  const text=document.getElementById("workspaceContent").value;
+  document.getElementById("workspaceCharCount").textContent=`${chapterCharCount(text).toLocaleString()} 字`;
+  document.getElementById("workspaceParagraphCount").textContent=`${chapterParagraphCount(text)} 段`;
+}
+function setWorkspaceSaveState(text){ const el=document.getElementById("workspaceSaveState"); if(el)el.textContent=text; }
+function markWorkspaceDirty(){
+  if(!workspaceChapter)return;
+  workspaceDirty=true;
+  setWorkspaceSaveState("● 尚未儲存");
+  clearTimeout(workspaceSaveTimer);
+  workspaceSaveTimer=setTimeout(()=>saveWorkspaceChapter(false),1200);
+}
+async function saveWorkspaceChapter(showMessage=false){
+  if(!workspaceChapter)return;
+  clearTimeout(workspaceSaveTimer);
+  const number=Number(document.getElementById("workspaceChapterNumber").value)||1;
+  const title=document.getElementById("workspaceChapterTitle").value.trim();
+  const content=document.getElementById("workspaceContent").value;
+  if(!title&&!content.trim())return;
+  const data={
+    number,title:title||`第 ${number} 章`,
+    status:document.getElementById("workspaceChapterStatus").value,
+    content,
+    notes:document.getElementById("workspaceNotes").value.trim(),
+    characterIds:[...document.querySelectorAll("#workspaceCharacterChecks input:checked")].map(x=>x.value),
+    eventIds:[...document.querySelectorAll("#workspaceEventChecks input:checked")].map(x=>x.value)
+  };
+  setWorkspaceSaveState("☁️ 儲存中…");
+  try{
+    const saved=await apiPost("saveChapter",{novelId:currentNovel["ID"],chapterId:workspaceChapter.id||"",data});
+    workspaceChapter={...saved};
+    const i=chapters.findIndex(x=>x.id===saved.id);
+    if(i>=0)chapters[i]=saved;else chapters.push(saved);
+    chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
+    workspaceDirty=false;
+    setWorkspaceSaveState(`☁️ 已儲存 · ${new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`);
+    renderWorkspaceChapterList();
+    if(showMessage)showToast("✅ 章節已儲存");
+  }catch(e){console.error(e);setWorkspaceSaveState("⚠️ 儲存失敗");showToast(e.message||"儲存失敗");}
+}
+
+function switchWorkspaceTab(tab){
+  ["characters","events","reference","ai"].forEach(name=>{
+    document.getElementById("workspaceTab"+name[0].toUpperCase()+name.slice(1)).classList.toggle("hidden",name!==tab);
+  });
+  document.querySelectorAll("[data-workspace-tab]").forEach(b=>b.classList.toggle("active",b.dataset.workspaceTab===tab));
+}
+
+function renderWorkspaceReference(){
+  const q=(document.getElementById("workspaceReferenceSearch")?.value||"").trim().toLowerCase();
+  const items=[];
+  characters.forEach(c=>{
+    const text=[c.name,c.role,c.identity,c.personality,c.abilities,c.secret].join(" ");
+    if(!q||text.toLowerCase().includes(q))items.push(`<article class="workspace-ref-card"><b>${emojiForRole(c.role)} ${escapeHtml(c.name||"未命名人物")}</b><small>${escapeHtml(c.role||"")} · ${escapeHtml(c.identity||"")}</small><p>${escapeHtml(c.personality||c.appearance||"尚無摘要")}</p></article>`);
+  });
+  factions.forEach(f=>{
+    const text=[f.name,f.type,f.leader,f.stance,f.goal,f.purpose].join(" ");
+    if(!q||text.toLowerCase().includes(q))items.push(`<article class="workspace-ref-card"><b>${factionEmoji(f.type)} ${escapeHtml(f.name||"未命名勢力")}</b><small>${escapeHtml(f.type||"勢力")} · ${escapeHtml(f.leader||"")}</small><p>${escapeHtml(f.goal||f.purpose||f.stance||"尚無摘要")}</p></article>`);
+  });
+  document.getElementById("workspaceReferenceList").innerHTML=items.join("")||'<div class="workspace-mini-empty">找不到符合資料</div>';
+}
+
+function workspaceAI(task){
+  workspaceAITask=task;
+  switchWorkspaceTab("ai");
+  generateWorkspaceAIPrompt();
+}
+function generateWorkspaceAIPrompt(){
+  if(!workspaceChapter)return showToast("請先選擇章節");
+  const task=AI_TASKS[workspaceAITask]||AI_TASKS.continue;
+  const custom=document.getElementById("workspaceAIInstruction").value.trim();
+  const content=document.getElementById("workspaceContent").value;
+  const prompt=`你是一位專業的繁體中文小說創作助手。
+
+【小說】${currentNovel?.["書名"]||"未命名"}
+
+【人物設定】
+${buildAICharacterContext()}
+
+【人物與勢力關係】
+${buildAIRelationContext()}
+
+【世界觀】
+${buildAIWorldContext()}
+
+【勢力】
+${buildAIFactionContext()}
+
+【劇情時間線】
+${buildAITimelineContext()}
+
+【目前章節】
+第 ${document.getElementById("workspaceChapterNumber").value} 章｜${document.getElementById("workspaceChapterTitle").value||"未命名"}
+狀態：${document.getElementById("workspaceChapterStatus").value}
+
+【正文】
+${content||"尚無正文"}
+
+【本次任務】
+${task.title}
+${task.instruction}
+${custom?`\n額外要求：${custom}`:""}
+
+規則：
+1. 使用繁體中文。
+2. 嚴格遵守既有人設、世界觀與人物關係。
+3. 不讓人物知道尚未得知的秘密。
+4. 不擅自新增衝突設定。
+5. 續寫／潤飾／對話任務直接輸出可使用正文，不解釋思考過程。`;
+  document.getElementById("workspaceAIPrompt").value=prompt;
+  showToast("✨ AI 提示詞已產生");
+}
+async function copyWorkspaceAIPrompt(){
+  const text=document.getElementById("workspaceAIPrompt").value;
+  if(!text)return showToast("請先產生提示詞");
+  try{await navigator.clipboard.writeText(text)}catch(e){const el=document.getElementById("workspaceAIPrompt");el.select();document.execCommand("copy")}
+  showToast("✅ 已複製");
+}
+function openWorkspaceMetaAI(){
+  if(!document.getElementById("workspaceAIPrompt").value)return showToast("請先產生提示詞");
+  window.open("https://www.meta.ai/","_blank","noopener,noreferrer");
+}
+
+function toggleWorkspaceMobilePanel(panel){
+  const shell=document.querySelector(".workspace-shell");
+  if(!shell)return;
+  shell.dataset.mobilePanel=panel;
+  document.querySelectorAll(".workspace-mobile-nav button").forEach((b,i)=>{
+    const names=["chapters","editor","inspector"];b.classList.toggle("active",names[i]===panel);
+  });
+}
+document.getElementById("workspaceChapterSearch").addEventListener("input",renderWorkspaceChapterList);
+document.getElementById("workspaceReferenceSearch").addEventListener("input",renderWorkspaceReference);
+["workspaceChapterNumber","workspaceChapterTitle","workspaceChapterStatus","workspaceContent","workspaceNotes"].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener(id==="workspaceContent"?"input":"change",()=>{if(id==="workspaceContent")updateWorkspaceStats();markWorkspaceDirty()});
+});
+document.getElementById("workspaceCharacterChecks").addEventListener("change",markWorkspaceDirty);
+document.getElementById("workspaceEventChecks").addEventListener("change",markWorkspaceDirty);
 
 /* =========================================================
  * v1.9 AI Writing Assistant
@@ -1868,6 +2092,7 @@ function jumpToCharacter(id){
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.creativeWorkspace.classList.contains("hidden")) { if(workspaceDirty) saveWorkspaceChapter(false); return showScreen("novel"); }
   if (!screens.aiWriter.classList.contains("hidden")) return showScreen("novel");
   if (!screens.chapterEditor.classList.contains("hidden")) return closeChapterEditor();
   if (!screens.chapters.classList.contains("hidden")) return showScreen("novel");
