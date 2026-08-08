@@ -11,6 +11,11 @@ let wizardReturn = "characters";
 let worldData = {};
 let currentWorldSection = "overview";
 let worldEditorReturn = "world";
+let locations = [];
+let filteredLocationType = "";
+let currentLocation = null;
+let currentLocationSection = "basic";
+let locationEditorReturn = "locations";
 let factions = [];
 let filteredFactionType = "";
 let currentFaction = null;
@@ -52,6 +57,10 @@ const screens = {
   world: document.getElementById("worldView"),
   worldDetail: document.getElementById("worldDetailView"),
   worldEditor: document.getElementById("worldEditorView"),
+  locations: document.getElementById("locationsView"),
+  locationDetail: document.getElementById("locationDetailView"),
+  locationSection: document.getElementById("locationSectionView"),
+  locationEditor: document.getElementById("locationEditorView"),
   factions: document.getElementById("factionsView"),
   factionDetail: document.getElementById("factionDetailView"),
   factionSection: document.getElementById("factionSectionView"),
@@ -200,6 +209,10 @@ function showScreen(name) {
     world:["🌍 世界觀",currentNovel?.["書名"] || ""],
     worldDetail:[worldSectionTitle(currentWorldSection),currentNovel?.["書名"] || ""],
     worldEditor:["✏️ " + worldSectionTitle(currentWorldSection),currentNovel?.["書名"] || ""],
+    locations:["📍 地點資料庫",currentNovel?.["書名"] || ""],
+    locationDetail:[currentLocation ? `${locationEmoji(currentLocation.type)} ${currentLocation.name}` : "📍 地點",currentNovel?.["書名"] || ""],
+    locationSection:[locationSectionGroups[currentLocationSection]?.title || "地點資料",currentLocation?.name || ""],
+    locationEditor:[document.getElementById("locationId")?.value ? "✏️ 編輯地點" : "＋ 新增地點",currentNovel?.["書名"] || ""],
     factions:["🏯 勢力資料庫",currentNovel?.["書名"] || ""],
     factionDetail:[currentFaction ? `${factionEmoji(currentFaction.type)} ${currentFaction.name}` : "🏯 勢力",currentNovel?.["書名"] || ""],
     factionSection:[factionSectionGroups[currentFactionSection]?.title || "勢力資料",currentFaction?.name || ""],
@@ -243,6 +256,7 @@ async function openNovel(novelId) {
     characters = await apiGet("getCharacters", {novelId:currentNovel["ID"]});
     document.getElementById("characterCount").textContent = `${characters.length} 位`;
   } catch (e) { document.getElementById("characterCount").textContent = "讀取失敗"; }
+  try { locations = await apiGet("getLocations", {novelId:currentNovel["ID"]}) || []; document.getElementById("locationCount").textContent = `${locations.length} 個`; } catch(e) { document.getElementById("locationCount").textContent = "讀取失敗"; }
   try { factions = await apiGet("getFactions", {novelId:currentNovel["ID"]}); document.getElementById("factionCount").textContent = `${factions.length} 個`; } catch(e) { document.getElementById("factionCount").textContent = "讀取失敗"; }
   try { relations = await apiGet("getRelations", {novelId:currentNovel["ID"]}) || []; } catch(e) { console.warn("關聯資料讀取失敗", e); relations = []; }
   try { characterLinks = await apiGet("getCharacterRelations", {novelId:currentNovel["ID"]}) || []; } catch(e) { console.warn("人物關係讀取失敗", e); characterLinks = []; }
@@ -514,6 +528,118 @@ worldForm.addEventListener("submit",async e=>{
   finally{saveWorldBtn.disabled=false;saveWorldBtn.textContent="💾 儲存世界觀"}
 });
 worldSearch.addEventListener("input",renderWorldSections);
+
+
+
+/* =========================================================
+ * v2.6 地點資料庫
+ * locations.json
+ * =======================================================*/
+const locationSectionGroups={
+  basic:{title:"📋 基本資料",icon:"📋",fields:[["名稱","name"],["類型","type"],["所屬區域／國家","region"],["所屬勢力","factionId"],["別名","alias"]]},
+  atmosphere:{title:"🌤️ 環境與氛圍",icon:"🌤️",fields:[["外觀／環境","appearance"],["氣氛","atmosphere"],["氣候／季節","climate"],["聲音／氣味／特色","sensory"]]},
+  function:{title:"🏛️ 用途與格局",icon:"🏛️",fields:[["主要用途","purpose"],["重要區域／格局","layout"],["進出／限制","access"]]},
+  story:{title:"📖 劇情用途",icon:"📖",fields:[["故事重要性","storyRole"],["首次出現章節","firstChapter"],["發生過的重要事件","events"]]},
+  secret:{title:"🔒 秘密與危險",icon:"🔒",fields:[["秘密／隱藏區域","secret"],["危險／禁忌","danger"]]},
+  notes:{title:"📝 備註",icon:"📝",fields:[["備註","notes"]]}
+};
+function locationEmoji(type){return ({"國家／疆域":"🗺️","城市／城鎮":"🏙️","皇宮／官署":"🏯","王府／宅邸":"🏛️","商業場所":"🏪","江湖／門派":"⚔️","自然地景":"🌲","秘密據點":"🕯️"})[type]||"📍"}
+function locationFactionName(id){return factions.find(f=>f.id===id)?.name||""}
+async function openLocations(){
+  showScreen("locations");
+  locationList.innerHTML='<div class="empty">正在讀取地點……</div>';
+  try{
+    const results=await Promise.allSettled([
+      apiGet("getLocations",{novelId:currentNovel["ID"]}),
+      factions.length?Promise.resolve(factions):apiGet("getFactions",{novelId:currentNovel["ID"]})
+    ]);
+    locations=results[0].status==="fulfilled"?(results[0].value||[]):[];
+    if(results[1].status==="fulfilled") factions=results[1].value||factions;
+    locationCount.textContent=`${locations.length} 個`;
+    renderLocations();
+  }catch(e){locationList.innerHTML=`<div class="empty">${escapeHtml(e.message)}</div>`}
+}
+function renderLocations(){
+  const q=locationSearch.value.trim().toLowerCase();
+  const rows=locations.filter(l=>(!filteredLocationType||l.type===filteredLocationType)&&[
+    l.name,l.alias,l.type,l.region,locationFactionName(l.factionId),l.appearance,l.atmosphere,l.purpose,l.storyRole,l.events,l.secret,l.notes
+  ].join(" ").toLowerCase().includes(q));
+  locationList.innerHTML=rows.length?rows.map(l=>`<button class="character-card" type="button" onclick="openLocationDetail('${safeAttr(l.id)}')">
+    <div class="character-avatar">${locationEmoji(l.type)}</div>
+    <div class="copy"><div class="card-title">${escapeHtml(l.name||"未命名地點")}</div>
+    <div class="card-meta">${escapeHtml(l.type||"未分類")} · ${escapeHtml(l.region||locationFactionName(l.factionId)||"尚未設定區域")}</div></div>
+    <div class="character-arrow">›</div></button>`).join(""):'<div class="empty">目前沒有符合條件的地點。</div>';
+}
+function openLocationDetail(id){
+  currentLocation=locations.find(l=>l.id===id);if(!currentLocation)return showToast("找不到地點");
+  locationDetailEmoji.textContent=locationEmoji(currentLocation.type);
+  locationDetailName.textContent=currentLocation.name||"未命名地點";
+  locationDetailSummary.textContent=currentLocation.alias?`別名：${currentLocation.alias}`:(currentLocation.purpose||"尚未設定用途");
+  locationDetailType.textContent=currentLocation.type||"未分類";
+  locationDetailRegion.textContent=currentLocation.region||locationFactionName(currentLocation.factionId)||"";
+  locationDetailMenu.innerHTML=Object.entries(locationSectionGroups).map(([k,g])=>{
+    let p=g.fields.map(([,x])=>x==="factionId"?locationFactionName(currentLocation[x]):currentLocation[x]).find(Boolean)||"尚未設定";
+    return `<button class="settings-row" type="button" onclick="openLocationSection('${k}')"><span class="settings-icon">${g.icon}</span><span class="settings-copy"><span class="settings-title">${g.title.replace(/^..\\s/,"")}</span><span class="settings-preview">${escapeHtml(p)}</span></span><span class="settings-arrow">›</span></button>`
+  }).join("");
+  showScreen("locationDetail");
+}
+function locationDisplayValue(key,value){return key==="factionId"?(locationFactionName(value)||"尚未設定"):value||"尚未設定"}
+function openLocationSection(k){
+  currentLocationSection=k;const g=locationSectionGroups[k];
+  locationSectionCards.innerHTML=g.fields.map(([l,x])=>`<article class="detail-card"><h3>${escapeHtml(l)}</h3><p>${escapeHtml(locationDisplayValue(x,currentLocation[x]))}</p></article>`).join("");
+  showScreen("locationSection");
+}
+function startNewLocation(){currentLocation=null;openLocationEditor("basic","locations")}
+function editLocationFromDetail(){openLocationEditor("basic","locationDetail")}
+function editCurrentLocationSection(){openLocationEditor(currentLocationSection,"locationSection")}
+async function openLocationEditor(section="basic",ret="locations"){
+  currentLocationSection=section;locationEditorReturn=ret;locationId.value=currentLocation?.id||"";
+  if(!factions.length){try{factions=await apiGet("getFactions",{novelId:currentNovel["ID"]})||[]}catch(e){console.warn(e)}}
+  const groups=currentLocation?{[section]:locationSectionGroups[section]}:locationSectionGroups;
+  const shortFields=["name","region","alias","firstChapter"];
+  locationEditorFields.innerHTML=Object.entries(groups).map(([k,g])=>`<section class="panel faction-editor-panel"><h3>${g.title}</h3>${g.fields.map(([label,key])=>{
+    const val=escapeHtml(currentLocation?.[key]||"");
+    if(key==="type")return `<label>${label}</label><select id="loc_${key}">${["國家／疆域","城市／城鎮","皇宮／官署","王府／宅邸","商業場所","江湖／門派","自然地景","秘密據點","其他"].map(v=>`<option ${currentLocation?.[key]===v?"selected":""}>${v}</option>`).join("")}</select>`;
+    if(key==="factionId")return `<label>${label}</label><select id="loc_${key}"><option value="">未指定勢力</option>${factions.map(f=>`<option value="${safeAttr(f.id)}" ${currentLocation?.[key]===f.id?"selected":""}>${escapeHtml(f.name||"未命名勢力")}</option>`).join("")}</select>`;
+    return shortFields.includes(key)?`<label>${label}</label><input id="loc_${key}" value="${val}">`:`<label>${label}</label><textarea id="loc_${key}">${val}</textarea>`;
+  }).join("")}</section>`).join("");
+  showScreen("locationEditor");
+}
+function cancelLocationEditor(){
+  if(locationEditorReturn==="locationDetail"&&currentLocation)return openLocationDetail(currentLocation.id);
+  if(locationEditorReturn==="locationSection"&&currentLocation)return openLocationSection(currentLocationSection);
+  showScreen("locations");
+}
+async function saveLocationEditor(){
+  const btn=saveLocationBtn,isEdit=!!locationId.value,data=isEdit?{...currentLocation}:{};
+  const groups=isEdit?{[currentLocationSection]:locationSectionGroups[currentLocationSection]}:locationSectionGroups;
+  Object.values(groups).forEach(g=>g.fields.forEach(([,k])=>{const el=document.getElementById(`loc_${k}`);if(el)data[k]=el.value.trim()}));
+  if(!isEdit&&!data.name)return showToast("請先輸入地點名稱");
+  btn.disabled=true;btn.textContent="☁️ 儲存中……";
+  try{
+    let saved;
+    if(isEdit){
+      saved=await apiPost("saveLocation",{novelId:currentNovel["ID"],locationId:locationId.value,data});
+      const i=locations.findIndex(l=>l.id===saved.id);if(i>=0)locations[i]=saved;
+    }else{
+      saved=await apiPost("createLocation",{novelId:currentNovel["ID"],data});locations.push(saved);
+    }
+    currentLocation=saved;locationCount.textContent=`${locations.length} 個`;renderLocations();showToast("✅ 地點已儲存");openLocationDetail(saved.id);
+  }catch(e){console.error(e);showToast(e.message||"地點儲存失敗")}
+  finally{btn.disabled=false;btn.textContent="💾 儲存地點"}
+}
+async function deleteCurrentLocation(){
+  if(!currentLocation||!confirm(`確定刪除「${currentLocation.name}」？`))return;
+  const id=currentLocation.id;
+  try{await apiPost("deleteLocation",{novelId:currentNovel["ID"],locationId:id});locations=locations.filter(l=>l.id!==id);currentLocation=null;locationCount.textContent=`${locations.length} 個`;renderLocations();showScreen("locations");showToast("✅ 地點已刪除")}
+  catch(e){showToast(e.message||"刪除失敗")}
+}
+locationSearch.addEventListener("input",renderLocations);
+document.getElementById("locationFilters").addEventListener("click",e=>{
+  const b=e.target.closest("[data-location-type]");if(!b)return;
+  document.querySelectorAll("#locationFilters .filter-chip").forEach(x=>x.classList.remove("active"));b.classList.add("active");
+  filteredLocationType=b.dataset.locationType||"";renderLocations();
+});
 
 
 /* v1.3 勢力資料庫 */
@@ -3071,6 +3197,10 @@ function jumpToCharacter(id){
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  if (!screens.locationEditor.classList.contains("hidden")) return cancelLocationEditor();
+  if (!screens.locationSection.classList.contains("hidden")) return openLocationDetail(currentLocation.id);
+  if (!screens.locationDetail.classList.contains("hidden")) return showScreen("locations");
+  if (!screens.locations.classList.contains("hidden")) return showScreen("novel");
   if (!screens.scenes.classList.contains("hidden")) return showScreen("novel");
   if (!screens.plotHooks.classList.contains("hidden")) return showScreen("novel");
   if (!screens.creativeWorkspace.classList.contains("hidden")) { if(workspaceDirty) saveWorkspaceChapter(false); return showScreen("novel"); }

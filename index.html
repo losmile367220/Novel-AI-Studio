@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#7567e8">
   <title>Novel AI Studio</title>
-  <link rel="stylesheet" href="style.css?v=20260808-v25-scenes">
+  <link rel="stylesheet" href="style.css?v=20260808-v26-locations">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -59,7 +59,7 @@
       <button class="module-card active" type="button" onclick="openCharacters()"><span>👥</span><b>人物</b><small id="characterCount">0 位</small></button>
       <button class="module-card active" type="button" onclick="openWorld()"><span>🌍</span><b>世界觀</b><small id="worldStatus">尚未設定</small></button>
       <button class="module-card active" type="button" onclick="openFactions()"><span>🏯</span><b>勢力</b><small id="factionCount">0 個</small></button>
-      <button class="module-card disabled" type="button"><span>📍</span><b>地點</b><small>即將開放</small></button>
+      <button class="module-card active" type="button" onclick="openLocations()"><span>📍</span><b>地點</b><small id="locationCount">0 個</small></button>
       <button class="module-card disabled" type="button"><span>🎒</span><b>物品</b><small>即將開放</small></button>
       <button class="module-card active" type="button" onclick="openPlotHooks()"><span>🧩</span><b>伏筆／線索</b><small>埋下 × 發展 × 回收</small></button>
       <button class="module-card disabled" type="button"><span>📖</span><b>章節</b><small>即將開放</small></button>
@@ -118,6 +118,50 @@
     </form>
   </section>
 
+
+
+  <section id="locationsView" class="screen hidden">
+    <div class="characters-tools">
+      <div class="search-wrap"><span>🔍</span><input id="locationSearch" type="search" placeholder="搜尋地點、類型、區域、勢力"></div>
+      <div id="locationFilters" class="filter-scroll">
+        <button class="filter-chip active" data-location-type="">全部</button>
+        <button class="filter-chip" data-location-type="國家／疆域">國家</button>
+        <button class="filter-chip" data-location-type="城市／城鎮">城市</button>
+        <button class="filter-chip" data-location-type="皇宮／官署">皇宮</button>
+        <button class="filter-chip" data-location-type="王府／宅邸">王府</button>
+        <button class="filter-chip" data-location-type="商業場所">商業</button>
+        <button class="filter-chip" data-location-type="江湖／門派">江湖</button>
+        <button class="filter-chip" data-location-type="自然地景">自然</button>
+        <button class="filter-chip" data-location-type="秘密據點">秘密</button>
+        <button class="filter-chip" data-location-type="其他">其他</button>
+      </div>
+    </div>
+    <div id="locationList" class="stack"></div>
+    <button class="fab" type="button" onclick="startNewLocation()">＋</button>
+  </section>
+
+  <section id="locationDetailView" class="screen hidden">
+    <article class="panel character-hero compact-hero">
+      <div id="locationDetailEmoji" class="avatar">📍</div>
+      <div class="hero-copy">
+        <h2 id="locationDetailName">地點</h2>
+        <p id="locationDetailSummary" class="muted"></p>
+        <div class="hero-meta"><span id="locationDetailType" class="pill"></span><span id="locationDetailRegion" class="soft-meta"></span></div>
+      </div>
+    </article>
+    <div id="locationDetailMenu" class="settings-list"></div>
+    <div class="bottom-actions"><button class="secondary" type="button" onclick="editLocationFromDetail()">✏️ 編輯地點</button><button class="danger" type="button" onclick="deleteCurrentLocation()">刪除</button></div>
+  </section>
+
+  <section id="locationSectionView" class="screen hidden">
+    <div id="locationSectionCards" class="detail-sections"></div>
+    <div class="single-bottom"><button class="primary" type="button" onclick="editCurrentLocationSection()">✏️ 編輯這一區</button></div>
+  </section>
+
+  <section id="locationEditorView" class="screen hidden">
+    <form id="locationForm"><input id="locationId" type="hidden"><div id="locationEditorFields"></div></form>
+    <div class="wizard-actions"><button class="secondary" type="button" onclick="cancelLocationEditor()">取消</button><button id="saveLocationBtn" class="primary" type="button" onclick="saveLocationEditor()">💾 儲存地點</button></div>
+  </section>
 
   <section id="factionsView" class="screen hidden">
     <div class="characters-tools">
@@ -960,6 +1004,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="config.js?v=20260808-factions13"></script>
-<script src="app.js?v=20260808-v251-scene-dropdown-fix"></script>
+<script src="app.js?v=20260808-v26-locations"></script>
 </body>
 </html>
