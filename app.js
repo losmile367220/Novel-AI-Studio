@@ -654,10 +654,15 @@ function renderScenes(){
 
 function fillSceneEditorSelects(scene){
   const chapterSelect = document.getElementById("sceneChapterId");
-  chapterSelect.innerHTML = sortedChapters().map(ch =>
-    `<option value="${safeAttr(ch.id)}">第 ${Number(ch.number)||"?"} 章｜${escapeHtml(ch.title||"未命名")}</option>`
-  ).join("");
-  chapterSelect.value = scene.chapterId || sortedChapters()[0]?.id || "";
+  const chapterRows = sortedChapters();
+
+  chapterSelect.innerHTML = chapterRows.length
+    ? chapterRows.map(ch =>
+        `<option value="${safeAttr(ch.id)}">第 ${Number(ch.number)||"?"} 章｜${escapeHtml(ch.title||"未命名")}</option>`
+      ).join("")
+    : '<option value="">目前沒有章節</option>';
+
+  chapterSelect.value = scene.chapterId || chapterRows[0]?.id || "";
 
   const pov = document.getElementById("scenePovCharacter");
   pov.innerHTML = '<option value="">未指定</option>' + characters.map(c =>
@@ -666,7 +671,30 @@ function fillSceneEditorSelects(scene){
   pov.value = scene.povCharacterId || "";
 }
 
-function openSceneEditor(id="", chapterId=""){
+async function openSceneEditor(id="", chapterId=""){
+  // v2.5.1：確保章節 / 人物 / 伏筆資料先載入，再建立下拉選單
+  try{
+    if(!chapters.length){
+      chapters = await apiGet("getChapters",{
+        novelId:currentNovel["ID"]
+      }) || [];
+      chapters.sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0));
+    }
+
+    if(!characters.length){
+      characters = await apiGet("getCharacters",{
+        novelId:currentNovel["ID"]
+      }) || [];
+    }
+
+    if(!plotHooks.length){
+      await loadPlotHooksFromCloud();
+    }
+  }catch(e){
+    console.error("scene editor preload failed", e);
+    showToast(e.message || "場景編輯器資料載入失敗");
+  }
+
   currentScene = id ? scenes.find(x=>x.id===id)||null : null;
 
   const scene = currentScene || {
